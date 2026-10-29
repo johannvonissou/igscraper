@@ -1,0 +1,138 @@
+from contextlib import asynccontextmanager
+from pathlib import Path
+
+from patchright.async_api import Error as PlaywrightError
+from patchright.async_api import async_playwright
+
+from igscraper.constants import (
+    BROWSER_ARGS,
+    BROWSER_CHROME_PATH,
+    BROWSER_DEFAULTS,
+    BROWSER_FALLBACK_GIF_CONTENT_TYPE,
+    BROWSER_FALLBACK_MEDIA_CONTENT_TYPE,
+    BROWSER_MEDIA_BLOCKED,
+    BROWSER_MEDIA_GIF,
+    BROWSER_MEDIA_RESOURCE_TYPE,
+    BROWSER_MEDIA_STATUS,
+    BROWSER_PROFILE_DIR,
+    debug,
+    info,
+)
+from igscraper.errors import BrowserError, summarize
+
+
+class BrowserOptions:
+    __slots__ = (
+        "block_media",
+        "extra_args",
+        "headless",
+        "locale",
+        "slow_mo",
+        "timezone_id",
+        "user_data_dir",
+    )
+
+    def __init__(self, **values):
+        unknown = values.keys() - BROWSER_DEFAULTS.keys()
+
+        if unknown:
+            names = ", ".join(sorted(unknown))
+            msg = f"Options de navigateur inconnues : {names}"
+            raise TypeError(msg)
+
+        for name, default in BROWSER_DEFAULTS.items():
+            setattr(self, name, values.get(name, default))
+
+
+async def soft_block_media(route):
+    resource_type = route.request.resource_type
+
+    if resource_type not in BROWSER_MEDIA_BLOCKED:
+        await route.fallback()
+
+        return
+
+    is_media = resource_type == BROWSER_MEDIA_RESOURCE_TYPE
+
+    await route.fulfill(
+        status=BROWSER_MEDIA_STATUS,
+        body=b"" if is_media else BROWSER_MEDIA_GIF,
+        content_type=BROWSER_FALLBACK_MEDIA_CONTENT_TYPE if is_media else BROWSER_FALLBACK_GIF_CONTENT_TYPE,
+    )
+
+
+def resolve_profile_dir(user_data_dir=None):
+    return Path(user_data_dir).expanduser() if user_data_dir else BROWSER_PROFILE_DIR
+
+
+def _launch_kwargs():
+    chosen = BROWSER_CHROME_PATH
+
+    if not chosen.is_file():
+        msg = f"Binaire Chromium local introuvable : {chosen}. Lancez « make build »."
+        raise BrowserError(msg)
+
+    debug(f"Chromium utilisé : {chosen}.")
+
+    return {"executable_path": str(chosen)}
+
+
+@asynccontextmanager
+async def stealth_browser(options=None):
+    config = options or BrowserOptions()
+
+    profile = resolve_profile_dir(config.user_data_dir)
+    profile.mkdir(parents=True, exist_ok=True)
+
+    args = [*BROWSER_ARGS, *(config.extra_args or ())]
+
+    launch_options = {
+        "headless": config.headless,
+        "no_viewport": True,
+        "locale": config.locale,
+        "timezone_id": config.timezone_id,
+        "args": args,
+    }
+
+    if config.slow_mo is not None:
+        launch_options["slow_mo"] = config.slow_mo
+
+    async with async_playwright() as playwright:
+        try:
+            context = await playwright.chromium.launch_persistent_context(
+                user_data_dir=str(profile),
+                **_launch_kwargs(),
+                **launch_options,
+            )
+        except PlaywrightError as exc:
+            msg = f"Impossible de lancer Chromium ({summarize(exc)}). Installez Chrome ou lancez « make build »."
+            raise BrowserError(msg) from exc
+
+        if config.block_media:
+            await context.route("**/*", soft_block_media)
+
+        info(f"Navigateur prêt (headless={config.headless}, profil={profile}).")
+
+        try:
+            yield context
+        finally:
+            try:
+                await context.close()
+            except PlaywrightError as exc:
+                debug(f"Fermeture du navigateur ignorée : {summarize(exc)}")
+
+
+async def first_page(context):
+    if context.pages:
+        return context.pages[0]
+
+    return await context.new_page()
+
+
+__all__ = [
+    "BrowserOptions",
+    "first_page",
+    "resolve_profile_dir",
+    "soft_block_media",
+    "stealth_browser",
+]

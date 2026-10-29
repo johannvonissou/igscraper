@@ -1,0 +1,69 @@
+[project]
+name = "igscraper"
+version = "6.0.0"
+description = "Client Python asynchrone pour Instagram."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "patchright>=1.64.3",
+]
+
+[project.scripts]
+igscraper = "igscraper.__main__:main"
+
+[build-system]
+requires = ["uv_build>=0.13.5,<1.0.0"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-root = ""
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+
+[tool.ruff.lint]
+select = [
+    "ARG",
+    "ASYNC",
+    "B",
+    "BLE",
+    "C4",
+    "C90",
+    "COM",
+    "E",
+    "EM",
+    "ERA",
+    "F",
+    "FBT",
+    "FIX",
+    "FLY",
+    "FURB",
+    "G",
+    "I",
+    "ICN",
+    "INP",
+    "ISC",
+    "LOG",
+    "N",
+    "PERF",
+    "PGH",
+    "PIE",
+    "PL",
+    "PTH",
+    "PYI",
+    "Q",
+    "RET",
+    "RSE",
+    "RUF",
+    "S",
+    "SIM",
+    "SLF",
+    "T20",
+    "TD",
+    "TID",
+    "TRY",
+    "UP",
+    "W",
+    "YTT",
+]
