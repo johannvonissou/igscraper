@@ -291,6 +291,7 @@ SEARCH_SEL_RESULTS_IMG = f'img[alt^="{SEARCH_RESULTS_IMG_TEXT}"]'
 SEARCH_SEL_RESULTS_SCOPE = "main"
 SEARCH_SEL_RESULTS_LINK = "a[href]"
 SEARCH_SEL_TAB = 'div[role="tab"]:not([aria-haspopup])'
+SEARCH_PERSONALIZED_TEXT = "Pour vous"
 SEARCH_NONPERSONALIZED_TEXT = "Non personnalisé"
 SEARCH_NONPERSONALIZED_PATTERN = r"^\s*(Non personnalisé|Not personali[sz]ed)\s*$"
 SEARCH_DETAIL_SEPARATOR = "•"

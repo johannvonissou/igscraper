@@ -43,7 +43,7 @@ Le navigateur est piloté avec **[Patchright](https://github.com/Kaliiiiiiiiii-V
 | --- | --- |
 | Connexion | Connexion par identifiants, par cookie `sessionid`, ou réutilisation d'un profil persistant. |
 | Challenges | Détection des CAPTCHA, 2FA, checkpoints et résolution manuelle avec `--headed`. |
-| Recherche | Recherche de comptes en mode « Non personnalisé » : nom, handle, abonnés et URL. |
+| Recherche | Union des résultats « Pour vous » et « Non personnalisé » : nom, handle, abonnés et URL. |
 | Profils | Nom, bio, lien, adresse, statut privé, statistiques, dernier suivi et dernières publications. |
 | Abonnements | Abonnement à un compte, avec confirmation de l'état (`Suivi(e)` ou demande en attente). |
 | Messages | Lecture de l'historique d'une conversation, pagination automatique et affichage des N derniers messages. |
@@ -236,7 +236,7 @@ igscraper search "openai"
 igscraper search "openai" --json
 ```
 
-La recherche sélectionne automatiquement l'onglet **« Non personnalisé »** des résultats avant l'extraction. Seuls les comptes affichés dans la liste de résultats sont retenus (l'historique « Récent » et l'avatar du compte connecté sont ignorés).
+La recherche récupère d'abord les résultats de l'onglet **« Pour vous »** (onglet par défaut), puis sélectionne l'onglet **« Non personnalisé »** et renvoie l'**union** des deux listes : les comptes « Pour vous » en premier, sans doublon, les champs manquants (comme le nombre d'abonnés) étant complétés par l'autre onglet. Seuls les comptes affichés dans la liste de résultats sont retenus (l'historique « Récent » et l'avatar du compte connecté sont ignorés).
 
 Le résultat contient le handle, le nom affiché, le nombre d'abonnés, l'URL du profil et l'URL de la photo de profil.
 

@@ -13,6 +13,7 @@ from igscraper.constants import (
     SEARCH_NONPERSONALIZED_PATTERN,
     SEARCH_NONPERSONALIZED_TEXT,
     SEARCH_PAGE,
+    SEARCH_PERSONALIZED_TEXT,
     SEARCH_RESULTS_IMG_TEXT,
     SEARCH_SEL_INPUT_CANDIDATES,
     SEARCH_SEL_RESULTS_IMG,
@@ -80,7 +81,7 @@ class Search:
             pause_chance=TYPE_PAUSE_CHANCE,
         )
 
-        accounts = await self._nonpersonalized_results()
+        accounts = await self._combined_results()
 
         if accounts is None:
             error("Panneau de résultats introuvable.")
@@ -125,39 +126,62 @@ class Search:
         return text
 
     async def _find_input(self):
-        for selector in SEARCH_SEL_INPUT_CANDIDATES:
-            locator = self._page.locator(selector)
+        field = self._page.locator(", ".join(SEARCH_SEL_INPUT_CANDIDATES)).first
 
-            if await locator.count():
-                return locator.first
+        try:
+            await field.wait_for(state="attached", timeout=SEARCH_TO_RESULTS)
+        except PlaywrightTimeoutError:
+            return None
 
-        return None
+        return field
 
-    async def _nonpersonalized_results(self):
+    async def _combined_results(self):
         tab = self._page.locator(SEARCH_SEL_TAB).filter(has_text=re.compile(SEARCH_NONPERSONALIZED_PATTERN))
 
         try:
             await tab.first.wait_for(state="visible", timeout=SEARCH_TO_TAB)
         except PlaywrightTimeoutError:
-            warn(f"Onglet « {SEARCH_NONPERSONALIZED_TEXT} » introuvable : résultats personnalisés conservés.")
+            warn(f"Onglet « {SEARCH_NONPERSONALIZED_TEXT} » introuvable : résultats personnalisés seuls.")
 
             return await self._stable_results(None)
 
-        before = await self._signature()
+        if await tab.first.get_attribute("aria-selected") == "true":
+            return await self._stable_results(None)
 
-        if await tab.first.get_attribute("aria-selected") != "true":
-            try:
-                await tab.first.click(timeout=SEARCH_TO_TAB)
-            except PlaywrightError:
-                warn(f"Clic sur l'onglet « {SEARCH_NONPERSONALIZED_TEXT} » impossible.")
+        personalized = await self._stable_results(None)
 
-                return await self._stable_results(None)
+        if personalized is None:
+            return None
 
-            info(f"Onglet « {SEARCH_NONPERSONALIZED_TEXT} » sélectionné.")
-        else:
-            before = None
+        info(f"Onglet « {SEARCH_PERSONALIZED_TEXT} » : {len(personalized)} compte(s).")
 
-        return await self._stable_results(before)
+        try:
+            await tab.first.click(timeout=SEARCH_TO_TAB)
+        except PlaywrightError:
+            warn(f"Clic sur l'onglet « {SEARCH_NONPERSONALIZED_TEXT} » impossible : résultats personnalisés seuls.")
+
+            return personalized
+
+        previous = tuple(account["username"] for account in personalized)
+        nonpersonalized = await self._stable_results(previous) or []
+
+        info(f"Onglet « {SEARCH_NONPERSONALIZED_TEXT} » : {len(nonpersonalized)} compte(s).")
+
+        return self._union(personalized, nonpersonalized)
+
+    @staticmethod
+    def _union(*groups):
+        merged = {}
+
+        for accounts in groups:
+            for account in accounts:
+                known = merged.setdefault(account["username"], dict(account))
+
+                for key, value in account.items():
+                    if known.get(key) is None and value is not None:
+                        known[key] = value
+
+        return list(merged.values())
 
     async def _signature(self):
         accounts = await self._collect()
