@@ -7,9 +7,13 @@ import unicodedata
 from datetime import datetime
 
 from igscraper.constants import (
+    RENDER_ACCOUNT_WIDTH,
     RENDER_ANSI,
+    RENDER_BUBBLE_INDENT,
+    RENDER_BUBBLE_MARGIN,
     RENDER_BUBBLE_MAX_TEXT,
     RENDER_BUBBLE_MIN_TEXT,
+    RENDER_BUBBLE_RATIO,
     RENDER_DAYS,
     RENDER_EMOJI_START,
     RENDER_EMPTY,
@@ -17,11 +21,15 @@ from igscraper.constants import (
     RENDER_PAGED_COMMANDS,
     RENDER_PLURAL_MIN,
     RENDER_POST_DESCRIPTION_LINES,
+    RENDER_RULE_MAX,
     RENDER_SEND_DEFAULT_LAST,
     RENDER_STYLES,
     RENDER_TERM_DEFAULT,
+    RENDER_TERM_HEIGHT,
     RENDER_TERM_MAX,
     RENDER_TERM_MIN,
+    RENDER_TODAY,
+    RENDER_YESTERDAY,
     RENDER_ZERO_WIDTH,
     RENDERER_NAMES,
 )
@@ -64,7 +72,7 @@ def _pad(text, width):
 
 
 def _term():
-    columns = shutil.get_terminal_size((RENDER_TERM_DEFAULT, 24)).columns
+    columns = shutil.get_terminal_size((RENDER_TERM_DEFAULT, RENDER_TERM_HEIGHT)).columns
 
     return max(RENDER_TERM_MIN, min(columns, RENDER_TERM_MAX))
 
@@ -74,7 +82,7 @@ def _center(text, width):
 
 
 def _rule(width=None):
-    return _paint("─" * (width or min(_term(), 60)), "gray")
+    return _paint("─" * (width or min(_term(), RENDER_RULE_MAX)), "gray")
 
 
 def _title(icon, text, subtitle=None):
@@ -120,10 +128,10 @@ def _day_label(day, today):
     delta = (today - day).days
 
     if delta == 0:
-        return "Aujourd'hui"
+        return RENDER_TODAY
 
     if delta == 1:
-        return "Hier"
+        return RENDER_YESTERDAY
 
     return f"{RENDER_DAYS[day.weekday()]} {day.day} {RENDER_MONTHS[day.month - 1]} {day.year}".capitalize()
 
@@ -216,7 +224,7 @@ def _render_posts(posts, width):
 
 
 def _render_account(data):
-    width = min(_term(), 80)
+    width = min(_term(), RENDER_ACCOUNT_WIDTH)
 
     badges = []
 
@@ -269,12 +277,12 @@ def _render_account(data):
 
 
 def _bubble(content, stamp, *, mine, term):
-    max_text = max(RENDER_BUBBLE_MIN_TEXT, min(int(term * 0.7), RENDER_BUBBLE_MAX_TEXT))
+    max_text = max(RENDER_BUBBLE_MIN_TEXT, min(int(term * RENDER_BUBBLE_RATIO), RENDER_BUBBLE_MAX_TEXT))
     body = _wrap(content.strip() or "(message vide)", max_text)
 
     inner = max(_width(stamp) + 2, *(_width(line) for line in body))
     color = "green" if mine else "cyan"
-    indent = " " * (term - inner - 4 if mine else 2)
+    indent = " " * (term - inner - RENDER_BUBBLE_INDENT if mine else RENDER_BUBBLE_MARGIN)
 
     top = _paint(f"╭{'─' * (inner + 2)}╮", color)
     bottom = _paint(f"╰{'─' * (inner - _width(stamp))} ", color) + _paint(stamp, "gray") + _paint(" ╯", color)

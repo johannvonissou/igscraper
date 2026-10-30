@@ -7,7 +7,9 @@ from patchright.async_api import Error as PlaywrightError
 from igscraper.constants import (
     MESSAGE_CONTACT_TEXTS,
     MESSAGE_CONTENT_PLACEHOLDERS,
+    MESSAGE_GRAPHQL_API,
     MESSAGE_GRAPHQL_FRAGMENT,
+    MESSAGE_GRAPHQL_QUERY,
     MESSAGE_HISTORY_ROUNDS,
     MESSAGE_HISTORY_STABLE,
     MESSAGE_MEDIA_PLACEHOLDER,
@@ -21,6 +23,8 @@ from igscraper.constants import (
     MESSAGE_SEL_COMPOSER_CANDIDATES,
     MESSAGE_SEL_THREAD,
     MESSAGE_SEND_POLL_MAX,
+    MESSAGE_SENT_PREVIEW,
+    MESSAGE_SENT_TOLERANCE,
     MESSAGE_SLEEP_POLL,
     MESSAGE_SLEEP_SEND_POLL,
     MESSAGE_TIMESTAMP_MICROSECONDS,
@@ -28,6 +32,8 @@ from igscraper.constants import (
     MESSAGE_TO_CHAT_WINDOW,
     MESSAGE_TO_CLOSE,
     MESSAGE_TO_PAGE,
+    MESSAGE_TYPE_TEXT,
+    MESSAGE_USER_FBID_KEY,
     POLL_DELAY_GROWTH,
     POLL_DELAY_MAX,
     POLL_DELAY_START,
@@ -156,7 +162,7 @@ class Message(ProfilePage):
     def _content(node):
         kind = str(node.get("content_type") or "").upper()
 
-        if not kind or kind == "TEXT":
+        if not kind or kind == MESSAGE_TYPE_TEXT:
             return node.get("text_body") or node.get("text") or ""
 
         return MESSAGE_CONTENT_PLACEHOLDERS.get(kind, MESSAGE_MEDIA_PLACEHOLDER)
@@ -191,7 +197,10 @@ class Message(ProfilePage):
         wanted = message.strip()
 
         for item in messages:
-            if item["isSelf"] and (item["content"] or "").strip() == wanted and item["timestamp"] >= sent_at - 120:
+            same_text = (item["content"] or "").strip() == wanted
+            recent = item["timestamp"] >= sent_at - MESSAGE_SENT_TOLERANCE
+
+            if item["isSelf"] and same_text and recent:
                 return messages
 
         viewer = self._users.get(str(self._viewer)) if self._viewer is not None else None
@@ -299,7 +308,7 @@ class Message(ProfilePage):
     async def _capture(self, response):
         url = response.url
 
-        if "/api/graphql" not in url and "/graphql/query" not in url:
+        if MESSAGE_GRAPHQL_API not in url and MESSAGE_GRAPHQL_QUERY not in url:
             return
 
         try:
@@ -358,7 +367,7 @@ class Message(ProfilePage):
             if not isinstance(user, dict) or not user.get("username"):
                 continue
 
-            for key in (user.get("id"), user.get("interop_messaging_user_fbid")):
+            for key in (user.get("id"), user.get(MESSAGE_USER_FBID_KEY)):
                 if key:
                     self._users[str(key)] = user["username"]
 
@@ -512,7 +521,7 @@ class Message(ProfilePage):
         if sent:
             return True
 
-        error(f"L'envoi du message n'a pas été confirmé : {message[:40]}.")
+        error(f"L'envoi du message n'a pas été confirmé : {message[:MESSAGE_SENT_PREVIEW]}.")
 
         return False
 

@@ -5,12 +5,17 @@ from patchright.async_api import Error as PlaywrightError
 from patchright.async_api import TimeoutError as PlaywrightTimeoutError
 
 from igscraper.constants import (
+    LOGIN_ALERT_PREVIEW,
     LOGIN_BTN_NAME_PATTERN,
     LOGIN_CHALLENGES,
     LOGIN_COOKIE_DOMAIN,
     LOGIN_COOKIE_PATH,
     LOGIN_COOKIE_SESSIONID,
     LOGIN_COOKIE_VERIFICATION,
+    LOGIN_METHOD_COOKIE,
+    LOGIN_METHOD_CREDENTIALS,
+    LOGIN_METHOD_LOGOUT,
+    LOGIN_METHOD_SESSIONID,
     LOGIN_PASSWORD_ALERT_DELAY,
     LOGIN_PENDING,
     LOGIN_SEL_ALERT,
@@ -52,9 +57,9 @@ from igscraper.navigation import click_first, goto_page, is_present, poll_for, t
 
 
 class LoginMethod:
-    COOKIE = "cookie"
-    CREDENTIALS = "password"
-    SESSIONID = "sessionid"
+    COOKIE = LOGIN_METHOD_COOKIE
+    CREDENTIALS = LOGIN_METHOD_CREDENTIALS
+    SESSIONID = LOGIN_METHOD_SESSIONID
 
 
 class LoginResult:
@@ -121,7 +126,7 @@ class Login:
     async def logout(self):
         await self._page.context.clear_cookies()
         success("Déconnexion réussie (cookies effacés).")
-        return LoginResult(success=True, method="logout")
+        return LoginResult(success=True, method=LOGIN_METHOD_LOGOUT)
 
     disconnect = logout
 
@@ -475,7 +480,7 @@ class Login:
             alert = await self._alert()
 
             if reason is None and alert:
-                reason = f"erreur signalée : {alert[:120]}"
+                reason = f"erreur signalée : {alert[:LOGIN_ALERT_PREVIEW]}"
 
             if reason != announced:
                 warn(f"Blocage : {reason}." if reason else "Blocage levé.")

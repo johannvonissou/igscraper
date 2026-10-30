@@ -9,6 +9,7 @@ from patchright.async_api import Error as PlaywrightError
 from patchright.async_api import async_playwright
 
 from igscraper.constants import (
+    BROWSER_ACCEPT_LANG_FLAG,
     BROWSER_ARGS,
     BROWSER_CHROME_PATH,
     BROWSER_DEFAULTS,
@@ -20,28 +21,19 @@ from igscraper.constants import (
     BROWSER_MEDIA_PATTERNS,
     BROWSER_MEDIA_RESOURCE_TYPE,
     BROWSER_MEDIA_STATUS,
+    BROWSER_PLATFORM_LINUX,
     BROWSER_PROFILE_DIR,
+    BROWSER_SCREEN_SIZE_FLAG,
+    BROWSER_USER_AGENT_TEMPLATES,
+    BROWSER_VERSION_PATTERN,
+    BROWSER_VERSION_TIMEOUT,
     BROWSER_WINDOW_HEIGHT,
+    BROWSER_WINDOW_SIZE_FLAG,
     BROWSER_WINDOW_WIDTH,
     debug,
     info,
 )
 from igscraper.errors import BrowserError, summarize
-
-USER_AGENT_TEMPLATES = {
-    "Linux": (
-        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
-        "(KHTML, like Gecko) Chrome/{major}.0.0.0 Safari/537.36"
-    ),
-    "Darwin": (
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
-        "(KHTML, like Gecko) Chrome/{major}.0.0.0 Safari/537.36"
-    ),
-    "Windows": (
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-        "(KHTML, like Gecko) Chrome/{major}.0.0.0 Safari/537.36"
-    ),
-}
 
 
 class BrowserOptions:
@@ -112,12 +104,12 @@ def chrome_major_version():
             capture_output=True,
             check=False,
             text=True,
-            timeout=10,
+            timeout=BROWSER_VERSION_TIMEOUT,
         )
     except (OSError, subprocess.SubprocessError):
         return None
 
-    match = re.search(r"(\d+)\.", result.stdout or "")
+    match = re.search(BROWSER_VERSION_PATTERN, result.stdout or "")
 
     return match.group(1) if match else None
 
@@ -129,7 +121,7 @@ def headless_user_agent():
     if major is None:
         return None
 
-    template = USER_AGENT_TEMPLATES.get(platform.system())
+    template = BROWSER_USER_AGENT_TEMPLATES.get(platform.system())
 
     return template.format(major=major) if template else None
 
@@ -145,10 +137,10 @@ def accept_language(locale):
 
 def launch_args(config):
     size = f"{BROWSER_WINDOW_WIDTH},{BROWSER_WINDOW_HEIGHT}"
-    args = [*BROWSER_ARGS, f"--window-size={size}"]
+    args = [*BROWSER_ARGS, f"{BROWSER_WINDOW_SIZE_FLAG}={size}"]
 
-    if config.headless and platform.system() == "Linux":
-        args.append(f"--ozone-override-screen-size={size}")
+    if config.headless and platform.system() == BROWSER_PLATFORM_LINUX:
+        args.append(f"{BROWSER_SCREEN_SIZE_FLAG}={size}")
 
         if BROWSER_GPU_PATH.is_dir():
             args.extend(BROWSER_GPU_FLAGS)
@@ -156,7 +148,7 @@ def launch_args(config):
     language = accept_language(config.locale)
 
     if language:
-        args.append(f"--accept-lang={language}")
+        args.append(f"{BROWSER_ACCEPT_LANG_FLAG}={language}")
 
     return [*args, *(config.extra_args or ())]
 

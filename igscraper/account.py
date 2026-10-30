@@ -4,6 +4,8 @@ from urllib.parse import parse_qs, urlparse
 from patchright.async_api import Error as PlaywrightError
 
 from igscraper.constants import (
+    ACCOUNT_BIO_LINK_HOST,
+    ACCOUNT_BIO_LINK_QUERY,
     ACCOUNT_BIO_MORE_TEXT,
     ACCOUNT_FOLLOW_MUTATION_HINTS,
     ACCOUNT_FOLLOW_TEXTS,
@@ -117,10 +119,10 @@ class Account(ProfilePage):
     def _decode_bio_link(href):
         parsed = urlparse(href)
 
-        if parsed.netloc != "l.instagram.com":
+        if parsed.netloc != ACCOUNT_BIO_LINK_HOST:
             return href
 
-        return parse_qs(parsed.query).get("u", [href])[0]
+        return parse_qs(parsed.query).get(ACCOUNT_BIO_LINK_QUERY, [href])[0]
 
     @staticmethod
     def _clean_lines(text):

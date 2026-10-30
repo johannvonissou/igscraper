@@ -1,7 +1,6 @@
 from functools import cache
-from pathlib import Path
 
-JS_DIR = Path(__file__).resolve().parent / "js"
+from igscraper.constants import JS_DIR
 
 
 @cache

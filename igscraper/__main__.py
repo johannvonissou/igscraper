@@ -5,7 +5,7 @@ import sys
 
 from igscraper import BrowserOptions, Instagram, __version__, configure_logging
 from igscraper.chrome import clean_chrome, clean_targets, install_chrome
-from igscraper.constants import error, info
+from igscraper.constants import CONFIRM_ANSWERS, DEFAULT_LOGIN_METHOD, LOG_LEVELS, error, info
 from igscraper.errors import BrowserError, IGScraperError, LoginError
 from igscraper.render import render
 from igscraper.session import SessionOptions, establish_session_result
@@ -55,7 +55,7 @@ def _common_options(*, suppress=False):
     parser.add_argument(
         "--log-level",
         default=argparse.SUPPRESS if suppress else None,
-        choices=("DEBUG", "INFO", "WARNING", "ERROR"),
+        choices=LOG_LEVELS,
         help="verbosité des journaux (défaut : INFO)",
     )
 
@@ -78,7 +78,7 @@ def _output_options():
     parser.add_argument(
         "--log-level",
         default=argparse.SUPPRESS,
-        choices=("DEBUG", "INFO", "WARNING", "ERROR"),
+        choices=LOG_LEVELS,
         help="verbosité des journaux (défaut : INFO)",
     )
 
@@ -194,7 +194,7 @@ def _confirm(targets):
     listing = "\n".join(f"  - {target}" for target in targets)
     answer = input(f"Supprimer définitivement :\n{listing}\nConfirmer ? [y/N] ")
 
-    return answer.strip().lower() in {"y", "yes", "o", "oui"}
+    return answer.strip().lower() in CONFIRM_ANSWERS
 
 
 def _chrome_clean(args):
@@ -265,7 +265,7 @@ async def _login_command(args):
     if not result or not result.sessionid:
         raise LoginError(result.reason if result else "impossible d'obtenir un sessionid")
 
-    return {"sessionId": result.sessionid, "method": result.method or "auto"}
+    return {"sessionId": result.sessionid, "method": result.method or DEFAULT_LOGIN_METHOD}
 
 
 async def _run_command(client, args):

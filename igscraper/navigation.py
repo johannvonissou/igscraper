@@ -10,12 +10,14 @@ from igscraper.constants import (
     ACCOUNT_SEL_USERNAME,
     ACCOUNT_TO_PROFILE,
     ACCOUNT_TO_PROFILE_READY,
+    BROWSER_DOM_READY,
     LOGIN_SLEEP_POLL,
     MAIN_PAGE,
     NAVIGATION_TO_CLICK,
     POLL_DELAY_GROWTH,
     POLL_DELAY_MAX,
     POLL_DELAY_START,
+    PROFILE_READY_MARKERS,
     TYPE_PAUSE_CHARS,
     asleep,
     debug,
@@ -58,7 +60,7 @@ async def is_present(page, selector):
     return await page.locator(selector).count() > 0
 
 
-async def goto_page(page, url, *, wait_until="domcontentloaded"):
+async def goto_page(page, url, *, wait_until=BROWSER_DOM_READY):
     await page.goto(url, wait_until=wait_until)
 
 
@@ -148,22 +150,10 @@ class ProfilePage:
         return True
 
     async def wait_profile_ready(self):
-        markers = (
-            "publications",
-            "followers",
-            "suivi",
-            "Suivre",
-            "S'abonner",
-            "Suivi(e)",
-            "Demandé",
-            "Modifier le profil",
-            "Ce profil est privé",
-        )
-
         ready = await wait_dom(
             self._page,
             "profile_ready",
-            {"selector": "main header", "markers": list(markers)},
+            {"selector": "main header", "markers": list(PROFILE_READY_MARKERS)},
             timeout_ms=ACCOUNT_TO_PROFILE_READY,
         )
 

@@ -1,7 +1,7 @@
 from igscraper.account import Account
 from igscraper.browser import BrowserOptions, first_page, stealth_browser
 from igscraper.client import Instagram
-from igscraper.constants import configure_logging
+from igscraper.constants import VERSION, configure_logging
 from igscraper.errors import (
     BrowserError,
     ChallengeRequiredError,
@@ -15,7 +15,7 @@ from igscraper.message import Message
 from igscraper.search import Search
 from igscraper.session import SessionOptions, establish_session, establish_session_result, get_sessionid
 
-__version__ = "7.0.0"
+__version__ = VERSION
 
 __all__ = [
     "Account",

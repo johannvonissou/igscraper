@@ -15,31 +15,35 @@ from igscraper.constants import (
     BROWSER_CHROME_PATH,
     BROWSER_PROFILE_DIR,
     BROWSER_VENDOR_DIR,
+    CHROME_AR_HEADER_SIZE,
+    CHROME_AR_MAGIC,
+    CHROME_AR_MAGIC_OFFSET,
+    CHROME_AR_NAME_SIZE,
+    CHROME_AR_SIZE_LENGTH,
+    CHROME_AR_SIZE_OFFSET,
+    CHROME_AR_TRAILER,
+    CHROME_BINARY,
+    CHROME_CONTENT_LENGTH,
+    CHROME_DEB_MEMBER,
+    CHROME_DEB_NAME,
+    CHROME_DOWNLOAD_BLOCK,
+    CHROME_DOWNLOAD_TIMEOUT,
+    CHROME_MODE_MASK,
+    CHROME_PROGRESS_STEP,
+    CHROME_STAGING,
+    CHROME_SUPPORTED_SYSTEM,
+    CHROME_TEMP_PREFIX,
+    CHROME_TREE,
+    CHROME_USER_AGENT,
+    CHROME_VERSION_TIMEOUT,
     PROJECT_ROOT,
+    SIZE_BASE,
+    SIZE_UNITS,
     debug,
     info,
+    success,
 )
 from igscraper.errors import BrowserError, summarize
-
-AR_MAGIC = b"!<arch>\n"
-AR_HEADER_SIZE = 60
-AR_NAME_SIZE = 16
-AR_SIZE_OFFSET = 48
-AR_SIZE_LENGTH = 10
-AR_MAGIC_OFFSET = 58
-
-CHROME_DEB_MEMBER = "data.tar"
-CHROME_TREE = ("opt", "google", "chrome")
-CHROME_BINARY = "chrome"
-CHROME_STAGING = ".chrome-new"
-
-DOWNLOAD_BLOCK = 1 << 20
-DOWNLOAD_TIMEOUT = 60
-PROGRESS_STEP = 10
-VERSION_TIMEOUT = 10
-
-SIZE_UNITS = ("o", "Ko", "Mo", "Go", "To")
-SIZE_BASE = 1024
 
 
 def chrome_installed():
@@ -53,7 +57,7 @@ def chrome_version(path=BROWSER_CHROME_PATH):
             capture_output=True,
             check=False,
             text=True,
-            timeout=VERSION_TIMEOUT,
+            timeout=CHROME_VERSION_TIMEOUT,
         )
     except (OSError, subprocess.SubprocessError):
         return None
@@ -62,14 +66,14 @@ def chrome_version(path=BROWSER_CHROME_PATH):
 
 
 def install_chrome(*, force=False, url=None):
-    if not sys.platform.startswith("linux"):
+    if not sys.platform.startswith(CHROME_SUPPORTED_SYSTEM):
         msg = f"L'installation automatique de Chrome n'est prise en charge que sous Linux (système : {sys.platform})."
         raise BrowserError(msg)
 
     if chrome_installed() and not force:
         version = chrome_version()
 
-        info(f"Chrome déjà installé : {version or BROWSER_CHROME_PATH}.")
+        success(f"Chrome déjà installé : {version or BROWSER_CHROME_PATH}.")
 
         return {"installed": True, "path": str(BROWSER_CHROME_PATH), "version": version, "skipped": True}
 
@@ -80,8 +84,8 @@ def install_chrome(*, force=False, url=None):
         msg = f"URL de téléchargement invalide (HTTPS requis) : {source}"
         raise BrowserError(msg)
 
-    with tempfile.TemporaryDirectory(prefix="igscraper-chrome-") as directory:
-        deb = Path(directory) / "google-chrome.deb"
+    with tempfile.TemporaryDirectory(prefix=CHROME_TEMP_PREFIX) as directory:
+        deb = Path(directory) / CHROME_DEB_NAME
 
         info(f"Téléchargement de Chrome depuis {source}…")
         _download(source, deb, _progress)
@@ -101,7 +105,7 @@ def install_chrome(*, force=False, url=None):
         msg = f"Chrome a été extrait mais ne démarre pas : {BROWSER_CHROME_PATH}"
         raise BrowserError(msg)
 
-    info(f"Chrome installé : {version}.")
+    success(f"Chrome installé : {version}.")
 
     return {"installed": True, "path": str(BROWSER_CHROME_PATH), "version": version, "skipped": False}
 
@@ -146,7 +150,7 @@ def clean_chrome(targets, *, dry_run=False):
             info(f"À supprimer : {target} ({format_size(size)}).")
         else:
             _remove(target)
-            info(f"Supprimé : {target} ({format_size(size)}).")
+            success(f"Supprimé : {target} ({format_size(size)}).")
 
         removed.append(str(target))
         total += size
@@ -190,16 +194,16 @@ def _progress(percent, done, total):
 
 
 def _download(url, destination, progress):
-    request = Request(url, headers={"User-Agent": "igscraper"})  # noqa: S310
+    request = Request(url, headers={"User-Agent": CHROME_USER_AGENT})  # noqa: S310
 
     try:
-        with urlopen(request, timeout=DOWNLOAD_TIMEOUT) as response, destination.open("wb") as handle:  # noqa: S310
-            total = int(response.headers.get("Content-Length") or 0)
+        with urlopen(request, timeout=CHROME_DOWNLOAD_TIMEOUT) as response, destination.open("wb") as handle:  # noqa: S310
+            total = int(response.headers.get(CHROME_CONTENT_LENGTH) or 0)
             done = 0
-            next_mark = PROGRESS_STEP
+            next_mark = CHROME_PROGRESS_STEP
 
             while True:
-                chunk = response.read(DOWNLOAD_BLOCK)
+                chunk = response.read(CHROME_DOWNLOAD_BLOCK)
 
                 if not chunk:
                     break
@@ -213,7 +217,7 @@ def _download(url, destination, progress):
                     if percent >= next_mark:
                         progress(percent, done, total)
 
-                        next_mark = percent + PROGRESS_STEP
+                        next_mark = percent + CHROME_PROGRESS_STEP
     except (OSError, URLError) as exc:
         msg = f"Téléchargement de Chrome impossible ({summarize(exc)})."
         raise BrowserError(msg) from exc
@@ -225,24 +229,27 @@ def _download(url, destination, progress):
 
 def _extract_ar_member(deb, directory):
     with deb.open("rb") as archive:
-        if archive.read(len(AR_MAGIC)) != AR_MAGIC:
+        if archive.read(len(CHROME_AR_MAGIC)) != CHROME_AR_MAGIC:
             msg = "Paquet .deb invalide : signature « ar » absente."
             raise BrowserError(msg)
 
         while True:
-            header = archive.read(AR_HEADER_SIZE)
+            header = archive.read(CHROME_AR_HEADER_SIZE)
 
             if not header:
                 return None
 
-            if len(header) < AR_HEADER_SIZE or header[AR_MAGIC_OFFSET : AR_MAGIC_OFFSET + 2] != b"`\n":
+            trailer = header[CHROME_AR_MAGIC_OFFSET : CHROME_AR_MAGIC_OFFSET + len(CHROME_AR_TRAILER)]
+
+            if len(header) < CHROME_AR_HEADER_SIZE or trailer != CHROME_AR_TRAILER:
                 msg = "Paquet .deb invalide : en-tête « ar » corrompu."
                 raise BrowserError(msg)
 
-            name = header[:AR_NAME_SIZE].decode("ascii", "replace").strip().rstrip("/")
+            name = header[:CHROME_AR_NAME_SIZE].decode("ascii", "replace").strip().rstrip("/")
 
             try:
-                size = int(header[AR_SIZE_OFFSET : AR_SIZE_OFFSET + AR_SIZE_LENGTH].decode("ascii").strip())
+                raw_size = header[CHROME_AR_SIZE_OFFSET : CHROME_AR_SIZE_OFFSET + CHROME_AR_SIZE_LENGTH]
+                size = int(raw_size.decode("ascii").strip())
             except ValueError as exc:
                 msg = f"Paquet .deb invalide : taille illisible pour « {name} »."
                 raise BrowserError(msg) from exc
@@ -267,7 +274,7 @@ def _copy_exact(source, destination, size):
     remaining = size
 
     while remaining:
-        chunk = source.read(min(DOWNLOAD_BLOCK, remaining))
+        chunk = source.read(min(CHROME_DOWNLOAD_BLOCK, remaining))
 
         if not chunk:
             msg = "Paquet .deb tronqué pendant l'extraction."
@@ -367,7 +374,7 @@ def _extract_member(tar, member, staging):
     with source, target.open("wb") as handle:
         shutil.copyfileobj(source, handle)
 
-    target.chmod(member.mode & 0o777)
+    target.chmod(member.mode & CHROME_MODE_MASK)
 
 
 def _remove(target):

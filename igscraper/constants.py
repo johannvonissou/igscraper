@@ -6,6 +6,10 @@ from base64 import b64decode
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
+PACKAGE_DIR = Path(__file__).resolve().parent
+JS_DIR = PACKAGE_DIR / "js"
+
+VERSION = "7.0.0"
 
 MAIN_PAGE = "https://www.instagram.com"
 SEARCH_PAGE = f"{MAIN_PAGE}/explore/"
@@ -18,6 +22,58 @@ BROWSER_PROFILE_DIR = PROJECT_ROOT / ".chrome-profile"
 
 BROWSER_LOCALE = "fr-FR"
 BROWSER_TIMEZONE = "Europe/Paris"
+
+BROWSER_DOM_READY = "domcontentloaded"
+BROWSER_VERSION_TIMEOUT = 10
+BROWSER_VERSION_PATTERN = r"(\d+)\."
+BROWSER_PLATFORM_LINUX = "Linux"
+BROWSER_PLATFORM_DARWIN = "Darwin"
+BROWSER_PLATFORM_WINDOWS = "Windows"
+
+BROWSER_WINDOW_SIZE_FLAG = "--window-size"
+BROWSER_SCREEN_SIZE_FLAG = "--ozone-override-screen-size"
+BROWSER_ACCEPT_LANG_FLAG = "--accept-lang"
+
+BROWSER_USER_AGENT_TEMPLATES = {
+    BROWSER_PLATFORM_LINUX: (
+        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/{major}.0.0.0 Safari/537.36"
+    ),
+    BROWSER_PLATFORM_DARWIN: (
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/{major}.0.0.0 Safari/537.36"
+    ),
+    BROWSER_PLATFORM_WINDOWS: (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/{major}.0.0.0 Safari/537.36"
+    ),
+}
+
+CHROME_SUPPORTED_SYSTEM = "linux"
+CHROME_TEMP_PREFIX = "igscraper-chrome-"
+CHROME_DEB_NAME = "google-chrome.deb"
+CHROME_DEB_MEMBER = "data.tar"
+CHROME_TREE = ("opt", "google", "chrome")
+CHROME_BINARY = "chrome"
+CHROME_STAGING = ".chrome-new"
+CHROME_USER_AGENT = "igscraper"
+CHROME_CONTENT_LENGTH = "Content-Length"
+CHROME_DOWNLOAD_BLOCK = 1 << 20
+CHROME_DOWNLOAD_TIMEOUT = 60
+CHROME_PROGRESS_STEP = 10
+CHROME_VERSION_TIMEOUT = 10
+CHROME_MODE_MASK = 0o777
+
+CHROME_AR_MAGIC = b"!<arch>\n"
+CHROME_AR_TRAILER = b"`\n"
+CHROME_AR_HEADER_SIZE = 60
+CHROME_AR_NAME_SIZE = 16
+CHROME_AR_SIZE_OFFSET = 48
+CHROME_AR_SIZE_LENGTH = 10
+CHROME_AR_MAGIC_OFFSET = 58
+
+SIZE_UNITS = ("o", "Ko", "Mo", "Go", "To")
+SIZE_BASE = 1024
 
 BROWSER_DEFAULTS = {
     "block_media": True,
@@ -97,10 +153,18 @@ RENDER_STYLES = {
 RENDER_TERM_MIN = 50
 RENDER_TERM_MAX = 100
 RENDER_TERM_DEFAULT = 88
+RENDER_TERM_HEIGHT = 24
+RENDER_ACCOUNT_WIDTH = 80
+RENDER_RULE_MAX = 60
 RENDER_BUBBLE_MIN_TEXT = 24
 RENDER_BUBBLE_MAX_TEXT = 64
+RENDER_BUBBLE_RATIO = 0.7
+RENDER_BUBBLE_INDENT = 4
+RENDER_BUBBLE_MARGIN = 2
 RENDER_SEND_DEFAULT_LAST = 10
 RENDER_POST_DESCRIPTION_LINES = 2
+RENDER_TODAY = "Aujourd'hui"
+RENDER_YESTERDAY = "Hier"
 
 RENDER_PAGED_COMMANDS = frozenset({"messages", "send"})
 
@@ -123,6 +187,8 @@ RENDER_MONTHS = (
 LOGIN_METHOD_COOKIE = "cookie"
 LOGIN_METHOD_CREDENTIALS = "password"
 LOGIN_METHOD_SESSIONID = "sessionid"
+LOGIN_METHOD_LOGOUT = "logout"
+LOGIN_ALERT_PREVIEW = 120
 
 RENDERER_NAMES = {
     "login": "_render_login",
@@ -259,11 +325,24 @@ ACCOUNT_NAME_LINE_INDEX = 1
 ACCOUNT_FOLLOWED_TEXT = "Suivi(e)"
 ACCOUNT_OWN_TEXT = "Modifier le profil"
 ACCOUNT_BIO_MORE_TEXT = "plus"
+ACCOUNT_BIO_LINK_HOST = "l.instagram.com"
+ACCOUNT_BIO_LINK_QUERY = "u"
 
 ACCOUNT_FOLLOW_TEXTS = ("Suivre", "S'abonner", "Follow")
 ACCOUNT_REQUESTED_TEXT = "Demandé"
 ACCOUNT_REQUESTED_CANCEL_TEXT = "Annuler la demande"
 ACCOUNT_FOLLOW_MUTATION_HINTS = ("friendships/create", "followmutations", "follow_mutation", "follow")
+
+PROFILE_READY_MARKERS = (
+    ACCOUNT_POSTS_TEXT,
+    ACCOUNT_FOLLOWERS_TEXT,
+    "suivi",
+    *ACCOUNT_FOLLOW_TEXTS,
+    ACCOUNT_FOLLOWED_TEXT,
+    ACCOUNT_REQUESTED_TEXT,
+    ACCOUNT_OWN_TEXT,
+    ACCOUNT_PRIVATE_TEXT,
+)
 
 ACCOUNT_TO_PROFILE = 10000
 ACCOUNT_TO_PROFILE_READY = 4000
@@ -295,6 +374,12 @@ MESSAGE_SEL_CLOSE_CANDIDATES = (
 
 MESSAGE_PAYLOAD_KEYS = ("get_slide_thread_nullable", "fetch__SlideThread")
 MESSAGE_GRAPHQL_FRAGMENT = "slide_messages"
+MESSAGE_GRAPHQL_API = "/api/graphql"
+MESSAGE_GRAPHQL_QUERY = "/graphql/query"
+MESSAGE_TYPE_TEXT = "TEXT"
+MESSAGE_USER_FBID_KEY = "interop_messaging_user_fbid"
+MESSAGE_SENT_TOLERANCE = 120
+MESSAGE_SENT_PREVIEW = 40
 
 MESSAGE_CONTENT_PLACEHOLDERS = {
     "IMAGES": "<photo>",
@@ -330,6 +415,10 @@ MESSAGE_SCROLL_COMPOSER_GAP = 80
 MESSAGE_HISTORY_ROUNDS = 40
 MESSAGE_HISTORY_STABLE = 2
 MESSAGE_SEND_POLL_MAX = 20
+
+LOG_LEVELS = ("DEBUG", "INFO", "WARNING", "ERROR")
+CONFIRM_ANSWERS = frozenset({"y", "yes", "o", "oui"})
+DEFAULT_LOGIN_METHOD = "auto"
 
 LOGGER_NAME = "igscraper"
 
