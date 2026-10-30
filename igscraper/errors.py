@@ -29,6 +29,13 @@ class ScrapeError(IGScraperError):
     pass
 
 
+class AccountNotFoundError(ScrapeError):
+    def __init__(self, username):
+        self.username = username
+
+        super().__init__(f"Le compte @{username} est introuvable : inexistant, supprimé ou vous ayant bloqué.")
+
+
 def summarize(exc):
     message = (str(exc) or "").strip()
     first = message.split("\n", 1)[0] if message else ""

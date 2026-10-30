@@ -366,6 +366,13 @@ PROFILE_READY_MARKERS = (
     ACCOUNT_PRIVATE_TEXT,
 )
 
+PROFILE_STATE_FOUND = "profile"
+PROFILE_STATE_NOT_FOUND = "not_found"
+PROFILE_NOT_FOUND_MARKERS = (
+    "cette page n'est malheureusement pas disponible",
+    "this page isn't available",
+)
+
 ACCOUNT_TO_PROFILE = 10000
 ACCOUNT_TO_PROFILE_READY = 4000
 ACCOUNT_TO_FOLLOW_CLICK = 5000

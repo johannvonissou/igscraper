@@ -3,6 +3,7 @@ from igscraper.browser import BrowserOptions, first_page, stealth_browser
 from igscraper.client import Instagram
 from igscraper.constants import VERSION, configure_logging
 from igscraper.errors import (
+    AccountNotFoundError,
     BrowserError,
     ChallengeRequiredError,
     IGScraperError,
@@ -19,6 +20,7 @@ __version__ = VERSION
 
 __all__ = [
     "Account",
+    "AccountNotFoundError",
     "BrowserError",
     "BrowserOptions",
     "ChallengeRequiredError",

@@ -666,6 +666,7 @@ igscraper/
     ├── account_overview.js
     ├── button_texts.js
     ├── profile_ready.js
+    ├── profile_state.js
     ├── search_results.js
     ├── sent_state.js
     ├── text_length.js
@@ -702,10 +703,20 @@ Toutes les exceptions héritent de `IGScraperError` et sont disponibles dans `ig
 | `ChallengeRequiredError` | Vérification de sécurité requise (CAPTCHA, 2FA). |
 | `LoginRequiredError` | Une session valide est nécessaire avant l'action. |
 | `ScrapeError` | Données Instagram inaccessibles ou action métier échouée. |
+| `AccountNotFoundError` | Compte inexistant, supprimé ou ayant bloqué l'utilisateur connecté (sous-classe de `ScrapeError`, attribut `username`). |
 
 Comportement :
 
 - Les méthodes de la façade `Instagram` lèvent une exception métier (`ScrapeError`, `LoginRequiredError`, `BrowserError`).
+- Instagram répond HTTP 200 avec la page « Cette page n'est malheureusement pas disponible » pour un compte inexistant, supprimé ou bloqué : `account`, `follow`, `messages` et `send` détectent cette page immédiatement et lèvent `AccountNotFoundError` (sans attendre de délai), ce qui permet de l'attraper séparément :
+
+  ```python
+  try:
+      profile = await client.account("un_compte")
+  except AccountNotFoundError as exc:
+      print(f"@{exc.username} n'existe pas")
+  ```
+
 - `login()` renvoie un `LoginResult` avec `success=False` et une `reason` en cas d'échec attendu.
 - Les classes de service utilisent un garde-fou qui intercepte les erreurs Playwright/OS, journalise le détail et renvoie `None` ou `False`.
 - Les messages d'erreur sont tronqués par `summarize()` pour rester lisibles.

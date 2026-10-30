@@ -10,6 +10,7 @@ from patchright.async_api import TimeoutError as PlaywrightTimeoutError
 from igscraper.constants import (
     ACCOUNT_COUNT_MULTIPLIERS,
     ACCOUNT_COUNT_PATTERN,
+    ACCOUNT_SEL_HEADER,
     ACCOUNT_SEL_USERNAME,
     ACCOUNT_TO_PROFILE,
     ACCOUNT_TO_PROFILE_READY,
@@ -20,13 +21,16 @@ from igscraper.constants import (
     POLL_DELAY_GROWTH,
     POLL_DELAY_MAX,
     POLL_DELAY_START,
+    PROFILE_NOT_FOUND_MARKERS,
     PROFILE_READY_MARKERS,
+    PROFILE_STATE_NOT_FOUND,
     TYPE_PAUSE_CHARS,
     asleep,
     debug,
     error,
     info,
 )
+from igscraper.errors import AccountNotFoundError
 from igscraper.scripts import script
 
 
@@ -160,18 +164,29 @@ class ProfilePage:
 
         info(f"Page de profil ouverte : {url}.")
 
-        if not await self.wait_profile():
+        if not await self.wait_profile(username):
             return None
 
         return await self.current_username()
 
-    async def wait_profile(self):
+    async def wait_profile(self, username):
         try:
-            await self._page.locator(ACCOUNT_SEL_USERNAME).first.wait_for(state="visible", timeout=ACCOUNT_TO_PROFILE)
+            handle = await self._page.wait_for_function(
+                script("profile_state"),
+                arg={
+                    "headerSelector": ACCOUNT_SEL_HEADER,
+                    "usernameSelector": ACCOUNT_SEL_USERNAME,
+                    "notFoundMarkers": list(PROFILE_NOT_FOUND_MARKERS),
+                },
+                timeout=ACCOUNT_TO_PROFILE,
+            )
         except PlaywrightTimeoutError:
-            error(f"Profil '{ACCOUNT_SEL_USERNAME}' introuvable : compte inexistant, bloqué, ou sélecteur à revoir.")
+            error(f"Profil '{ACCOUNT_SEL_USERNAME}' introuvable : page inattendue ou sélecteur à revoir.")
 
             return False
+
+        if await handle.json_value() == PROFILE_STATE_NOT_FOUND:
+            raise AccountNotFoundError(username)
 
         await self.wait_profile_ready()
 
