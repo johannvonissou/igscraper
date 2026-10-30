@@ -1,3 +1,4 @@
+import re
 import time
 from inspect import isawaitable
 from random import random, uniform
@@ -7,6 +8,8 @@ from patchright.async_api import Error as PlaywrightError
 from patchright.async_api import TimeoutError as PlaywrightTimeoutError
 
 from igscraper.constants import (
+    ACCOUNT_COUNT_MULTIPLIERS,
+    ACCOUNT_COUNT_PATTERN,
     ACCOUNT_SEL_USERNAME,
     ACCOUNT_TO_PROFILE,
     ACCOUNT_TO_PROFILE_READY,
@@ -114,6 +117,31 @@ async def type_text(  # noqa: PLR0913
         await asleep(delay)
 
 
+def parse_count(text):
+    if text is None:
+        return None
+
+    cleaned = str(text).replace("\u202f", "").replace("\u00a0", "").replace(" ", "")
+    match = re.fullmatch(ACCOUNT_COUNT_PATTERN, cleaned)
+
+    if match is None:
+        return None
+
+    number, unit = match.groups()
+
+    if not unit:
+        digits = number.replace(",", "").replace(".", "")
+
+        return int(digits) if digits.isdigit() else None
+
+    try:
+        value = float(number.replace(",", "."))
+    except ValueError:
+        return None
+
+    return round(value * ACCOUNT_COUNT_MULTIPLIERS[unit.lower()])
+
+
 class ProfilePage:
     def __init__(self, page):
         self._page = page
@@ -182,6 +210,7 @@ __all__ = [
     "click_first",
     "goto_page",
     "is_present",
+    "parse_count",
     "poll_for",
     "type_text",
     "wait_dom",

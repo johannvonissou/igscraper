@@ -288,9 +288,13 @@ SESSION_SLEEP_RESTART = 10
 
 SEARCH_RESULTS_IMG_TEXT = "Photo de profil de "
 SEARCH_SEL_RESULTS_IMG = f'img[alt^="{SEARCH_RESULTS_IMG_TEXT}"]'
-SEARCH_SEL_RESULTS_CONTAINER = 'xpath=ancestor::div[.//span[@dir="auto"]][1]'
-SEARCH_SEL_RESULTS_NAMES = 'span[dir="auto"]'
-SEARCH_SEL_RESULTS_URL = "a[href]"
+SEARCH_SEL_RESULTS_SCOPE = "main"
+SEARCH_SEL_RESULTS_LINK = "a[href]"
+SEARCH_SEL_TAB = 'div[role="tab"]:not([aria-haspopup])'
+SEARCH_NONPERSONALIZED_TEXT = "Non personnalisé"
+SEARCH_NONPERSONALIZED_PATTERN = r"^\s*(Non personnalisé|Not personali[sz]ed)\s*$"
+SEARCH_DETAIL_SEPARATOR = "•"
+SEARCH_FOLLOWERS_SUFFIXES = ("followers", "abonnés", "abonné(e)s")
 
 SEARCH_SEL_INPUT = 'input[aria-label="Saisie de la recherche"]'
 SEARCH_SEL_INPUT_CANDIDATES = (
@@ -300,6 +304,9 @@ SEARCH_SEL_INPUT_CANDIDATES = (
 )
 
 SEARCH_TO_RESULTS = 8000
+SEARCH_TO_TAB = 8000
+SEARCH_TO_SWITCH = 5
+SEARCH_STABLE_DELAY = 0.8
 
 ACCOUNT_SEL_HEADER = "main header"
 ACCOUNT_SEL_USERNAME = "main header h2"
@@ -309,6 +316,7 @@ ACCOUNT_SEL_BIO = 'main header div[role="button"]:has(span[dir="auto"]):not(:has
 ACCOUNT_SEL_BIO_LINK = 'main header a[href^="http"]'
 ACCOUNT_SEL_FOLLOWERS = "main header span[title]"
 ACCOUNT_SEL_POSTS = 'main a[href*="/p/"], main a[href*="/reel/"], main a[href*="/tv/"]'
+ACCOUNT_POST_HREF_PATTERN = r"^/(?:[\w.]+/)?(?:p|reel|tv)/[\w-]+/?$"
 ACCOUNT_SEL_BUTTONS = 'main button, main div[role="button"]'
 
 ACCOUNT_POSTS_TEXT = "publications"
@@ -320,6 +328,15 @@ ACCOUNT_STATS_SUFFIXES = (
     ACCOUNT_FOLLOWING_TEXT,
 )
 
+ACCOUNT_COUNT_PATTERN = r"(\d+(?:[.,]\d+)*)(k|K|M|m|Md|B|G)?"
+ACCOUNT_COUNT_MULTIPLIERS = {
+    "k": 1_000,
+    "m": 1_000_000,
+    "md": 1_000_000_000,
+    "b": 1_000_000_000,
+    "g": 1_000_000_000,
+}
+
 ACCOUNT_PRIVATE_TEXT = "Ce profil est privé"
 ACCOUNT_NAME_LINE_INDEX = 1
 ACCOUNT_FOLLOWED_TEXT = "Suivi(e)"
@@ -327,6 +344,10 @@ ACCOUNT_OWN_TEXT = "Modifier le profil"
 ACCOUNT_BIO_MORE_TEXT = "plus"
 ACCOUNT_BIO_LINK_HOST = "l.instagram.com"
 ACCOUNT_BIO_LINK_QUERY = "u"
+ACCOUNT_BIO_LINK_EXCLUDED_HOSTS = ("threads.com", "threads.net")
+ACCOUNT_BIO_LINK_BUTTON_PATTERN = r"^((?:[\w-]+\.)+[a-z]{2,}(?:/\S*)?)(?:\s+(?:et|and)\s+\d+\s+(?:de plus|more))?$"
+ACCOUNT_BIO_LINK_SCHEME = "https://"
+ACCOUNT_SEL_HEADER_BUTTONS = 'main header div[role="button"], main header button'
 
 ACCOUNT_FOLLOW_TEXTS = ("Suivre", "S'abonner", "Follow")
 ACCOUNT_REQUESTED_TEXT = "Demandé"
@@ -351,6 +372,8 @@ ACCOUNT_TO_FOLLOW_RESPONSE = 2000
 ACCOUNT_TO_BIO_CLICK = 3000
 ACCOUNT_TO_BIO_EXPAND = 2000
 ACCOUNT_TO_ATTRIBUTE = 1000
+ACCOUNT_TO_POSTS = 5000
+ACCOUNT_POSTS_STABLE = 0.8
 ACCOUNT_TO_FOLLOW = 10
 
 MESSAGE_CONTACT_TEXTS = ("Contacter", "Message")
@@ -418,6 +441,42 @@ MESSAGE_SEND_POLL_MAX = 20
 
 LOG_LEVELS = ("DEBUG", "INFO", "WARNING", "ERROR")
 CONFIRM_ANSWERS = frozenset({"y", "yes", "o", "oui"})
+
+CONSOLE_PROMPT = "ig> "
+CONSOLE_DEFAULT_LOG_LEVEL = "WARNING"
+CONSOLE_DEFAULT_LAST = 10
+CONSOLE_SESSION_PREVIEW = 12
+CONSOLE_PAIR = 2
+CONSOLE_ON_VALUES = frozenset({"on", "oui", "1", "true"})
+CONSOLE_OFF_VALUES = frozenset({"off", "non", "0", "false"})
+CONSOLE_QUIT = frozenset({"quit", "exit", "q"})
+CONSOLE_HELP = frozenset({"help", "aide", "?"})
+CONSOLE_ALIASES = {
+    "profile": "account",
+    "msgs": "messages",
+    "dm": "send",
+    "disconnect": "logout",
+}
+CONSOLE_HELP_TEXT = """\
+Commandes disponibles :
+  login                                   réutiliser la session du profil persistant
+  login <utilisateur> <mot_de_passe>      se connecter avec des identifiants
+  login --sessionid <cookie>              se connecter avec un cookie sessionid
+  logout                                  effacer les cookies de session
+  search <texte>                          rechercher des comptes
+  account <compte>                        lire un profil
+  follow <compte>                         s'abonner à un compte
+  messages <compte> [--last N]            lire une conversation (défaut : 10, 0 = tout)
+  send <compte> <texte> [--history] [--last N]
+                                          envoyer un message privé
+  status                                  état du navigateur et de la session
+  headless [on|off]                       relancer le navigateur en mode headless ou visible
+  json [on|off]                           afficher les réponses brutes en JSON
+  help                                    afficher cette aide
+  quit / exit                             quitter
+
+Chaque commande accepte aussi « --json » pour une réponse brute ponctuelle.
+La durée de chaque requête est affichée à la fin de son exécution."""
 DEFAULT_LOGIN_METHOD = "auto"
 
 LOGGER_NAME = "igscraper"

@@ -24,6 +24,7 @@ Le navigateur est piloté avec **[Patchright](https://github.com/Kaliiiiiiiiii-V
   - [`follow` : s'abonner](#follow--sabonner)
   - [`messages` : lire une conversation](#messages--lire-une-conversation)
   - [`send` : envoyer un message](#send--envoyer-un-message)
+  - [`console` : console interactive](#console--console-interactive)
 - [Sorties JSON](#sorties-json)
 - [API Python](#api-python)
 - [Comportement et robustesse](#comportement-et-robustesse)
@@ -42,7 +43,7 @@ Le navigateur est piloté avec **[Patchright](https://github.com/Kaliiiiiiiiii-V
 | --- | --- |
 | Connexion | Connexion par identifiants, par cookie `sessionid`, ou réutilisation d'un profil persistant. |
 | Challenges | Détection des CAPTCHA, 2FA, checkpoints et résolution manuelle avec `--headed`. |
-| Recherche | Recherche de comptes Instagram et extraction du nom, du handle et de l'URL. |
+| Recherche | Recherche de comptes en mode « Non personnalisé » : nom, handle, abonnés et URL. |
 | Profils | Nom, bio, lien, adresse, statut privé, statistiques, dernier suivi et dernières publications. |
 | Abonnements | Abonnement à un compte, avec confirmation de l'état (`Suivi(e)` ou demande en attente). |
 | Messages | Lecture de l'historique d'une conversation, pagination automatique et affichage des N derniers messages. |
@@ -50,6 +51,7 @@ Le navigateur est piloté avec **[Patchright](https://github.com/Kaliiiiiiiiii-V
 | Chrome | Téléchargement, installation et nettoyage de Chrome et de ses profils. |
 | Furtivité | Patchright, user-agent cohérent, locale/timezone, profil persistant, blocage des médias. |
 | Sorties | Rendu terminal coloré ou JSON brut pour l'automatisation. |
+| Console | Console interactive `igscraper console` : une requête par commande, avec chrono. |
 | Intégration | API Python asynchrone, classes de service réutilisables et helpers de session. |
 
 ---
@@ -234,7 +236,9 @@ igscraper search "openai"
 igscraper search "openai" --json
 ```
 
-Le résultat contient le handle, le nom affiché, l'URL du profil et l'URL de la photo de profil.
+La recherche sélectionne automatiquement l'onglet **« Non personnalisé »** des résultats avant l'extraction. Seuls les comptes affichés dans la liste de résultats sont retenus (l'historique « Récent » et l'avatar du compte connecté sont ignorés).
+
+Le résultat contient le handle, le nom affiché, le nombre d'abonnés, l'URL du profil et l'URL de la photo de profil.
 
 ### `account` : consulter un profil
 
@@ -281,7 +285,45 @@ igscraper send "instagram" "Bonjour !" --sessionid "VOTRE_SESSIONID" --history -
 | `--history` | Relit l'historique après l'envoi. |
 | `--last N` | Avec `--history`, n'affiche que les N derniers messages (défaut : 10, `0` = tous). |
 
-L'envoi est confirmé en vérifiant que le message apparaît dans la conversation.
+L'envoi est confirmé en vérifiant qu'une nouvelle occurrence du message apparaît dans la conversation. Les retours à la ligne (`\n`) sont conservés dans un seul message.
+
+### `console` : console interactive
+
+```bash
+igscraper console
+igscraper console --headed
+igscraper console --sessionid "VOTRE_SESSIONID"
+```
+
+Le navigateur et la session sont ouverts une seule fois au démarrage (réutilisation du profil persistant par défaut), puis chaque commande exécute une requête et affiche sa durée. La console accepte les options communes ; le niveau de journalisation par défaut est `WARNING`.
+
+```text
+login                                   réutiliser la session du profil persistant
+login <utilisateur> <mot_de_passe>      se connecter avec des identifiants
+login --sessionid <cookie>              se connecter avec un cookie sessionid
+logout                                  effacer les cookies de session
+search <texte>                          rechercher des comptes
+account <compte>                        lire un profil
+follow <compte>                         s'abonner à un compte
+messages <compte> [--last N]            lire une conversation (défaut : 10, 0 = tout)
+send <compte> <texte> [--history] [--last N]
+                                        envoyer un message privé
+status                                  état du navigateur et de la session
+headless [on|off]                       relancer le navigateur en mode headless ou visible
+json [on|off]                           afficher les réponses brutes en JSON
+help                                    afficher l'aide
+quit / exit                             quitter
+```
+
+Chaque commande accepte `--json` pour une réponse brute ponctuelle. Alias : `profile` (`account`), `msgs` (`messages`), `dm` (`send`), `disconnect` (`logout`).
+
+```text
+ig> account instagram
+→ account…
+👤 @instagram  Instagram
+...
+⏱  1.42 s
+```
 
 ---
 
@@ -306,6 +348,7 @@ Chaque commande accepte `--json`. Les journaux sont alors coupés et seuls les r
     "profilePictureUrl": "https://...",
     "username": "instagram",
     "name": "Instagram",
+    "followersCount": 686000000,
     "url": "https://www.instagram.com/instagram/"
   }
 ]
@@ -328,7 +371,8 @@ Chaque commande accepte `--json`. Les journaux sont alors coupés et seuls les r
   "latestPosts": [
     {
       "description": "Texte alternatif de l'image",
-      "imageUrl": "https://..."
+      "imageUrl": "https://...",
+      "url": "https://www.instagram.com/instagram/p/ABC123/"
     }
   ]
 }
@@ -608,6 +652,7 @@ igscraper/
 ├── browser.py         # lancement furtif, options, blocage médias
 ├── chrome.py          # installation et nettoyage de Chrome
 ├── client.py          # façade Instagram
+├── console.py         # console interactive
 ├── constants.py       # toutes les constantes du projet
 ├── errors.py          # exceptions et helpers
 ├── login.py           # connexion, cookies, challenges

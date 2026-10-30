@@ -5,7 +5,15 @@ import sys
 
 from igscraper import BrowserOptions, Instagram, __version__, configure_logging
 from igscraper.chrome import clean_chrome, clean_targets, install_chrome
-from igscraper.constants import CONFIRM_ANSWERS, DEFAULT_LOGIN_METHOD, LOG_LEVELS, error, info
+from igscraper.console import serve
+from igscraper.constants import (
+    CONFIRM_ANSWERS,
+    CONSOLE_DEFAULT_LOG_LEVEL,
+    DEFAULT_LOGIN_METHOD,
+    LOG_LEVELS,
+    error,
+    info,
+)
 from igscraper.errors import BrowserError, IGScraperError, LoginError
 from igscraper.render import render
 from igscraper.session import SessionOptions, establish_session_result
@@ -125,6 +133,8 @@ def _build_parser():
         metavar="N",
         help="avec --history : afficher les N derniers messages (défaut 10, 0 = tous)",
     )
+
+    _command(commands, "console", "ouvrir une console interactive (une requête par commande)", command_common)
 
     output = _output_options()
 
@@ -330,6 +340,14 @@ async def _run(args):
 
 def main(argv=None):
     args = _build_parser().parse_args(argv)
+
+    if args.command == "console":
+        configure_logging(args.log_level or CONSOLE_DEFAULT_LOG_LEVEL)
+
+        try:
+            return asyncio.run(serve(args))
+        except KeyboardInterrupt:
+            return _fail("Interrompu.", args)
 
     configure_logging(args.log_level, quiet=args.json)
 

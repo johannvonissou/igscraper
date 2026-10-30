@@ -1,8 +1,17 @@
-({ prefix, imgSelector, namesSelector, linkSelector }) => {
+({ scopeSelector, tabSelector, prefix, imgSelector, linkSelector, separator, followerSuffixes }) => {
+  const scope = document.querySelector(scopeSelector);
+  const tablist = scope?.querySelector(tabSelector)?.closest('[role="tablist"]');
+
+  if (!tablist) {
+    return null;
+  }
+
+  const after = (node) => Boolean(tablist.compareDocumentPosition(node) & Node.DOCUMENT_POSITION_FOLLOWING);
+  const links = Array.from(scope.querySelectorAll(linkSelector)).filter(after);
   const accounts = [];
   const seen = new Set();
 
-  for (const img of document.querySelectorAll(imgSelector)) {
+  for (const img of Array.from(scope.querySelectorAll(imgSelector)).filter(after)) {
     const alt = img.getAttribute("alt") || "";
 
     if (!alt.startsWith(prefix)) {
@@ -10,60 +19,48 @@
     }
 
     const username = alt.slice(prefix.length).trim();
+    const link = img.closest(linkSelector);
 
-    if (!username || seen.has(username)) {
+    if (!username || !link || seen.has(username)) {
       continue;
     }
 
-    let container = img.closest("div");
+    const href = link.getAttribute("href") || "";
 
-    while (container && !container.querySelector(namesSelector)) {
-      container = container.parentElement;
-    }
-
-    if (!container) {
+    if (href.replace(/^\/+|\/+$/g, "").split("/")[0] !== username) {
       continue;
     }
 
-    const labels = [];
+    const lines = [];
 
-    for (const span of container.querySelectorAll(namesSelector)) {
-      const text = (span.textContent || "").trim();
-
-      if (text && !labels.includes(text)) {
-        labels.push(text);
-      }
-    }
-
-    const name = labels.find((label) => label !== username) || username;
-    let url = null;
-
-    for (const link of container.querySelectorAll(linkSelector)) {
-      const href = link.getAttribute("href");
-
-      if (!href) {
+    for (const candidate of links) {
+      if (candidate.getAttribute("href") !== href) {
         continue;
       }
 
-      const firstSegment = href.replace(/^\/+|\/+$/g, "").split("/")[0];
+      for (const line of (candidate.innerText || "").split("\n")) {
+        const text = line.trim();
 
-      if (firstSegment !== username) {
-        continue;
+        if (text && text !== username && !lines.includes(text)) {
+          lines.push(text);
+        }
       }
-
-      url = new URL(href, location.href).href;
-      break;
     }
 
-    if (url === null) {
-      continue;
-    }
+    const parts = (lines[0] || "")
+      .split(separator)
+      .map((part) => part.trim())
+      .filter(Boolean);
+    const isFollowers = (part) => followerSuffixes.some((suffix) => part.toLowerCase().endsWith(suffix));
+    const followers = parts.find(isFollowers) || null;
+    const name = parts.filter((part) => !isFollowers(part)).join(` ${separator} `) || username;
 
     accounts.push({
       profilePictureUrl: img.getAttribute("src"),
       username,
       name,
-      url,
+      followers,
+      url: new URL(href, location.href).href,
     });
 
     seen.add(username);

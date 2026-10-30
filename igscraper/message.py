@@ -266,18 +266,39 @@ class Message(ProfilePage):
         return composer
 
     async def _send(self, composer, message):
+        before = await self._page.evaluate(script("sent_state"), self._sent_args(message))
+
         await composer.click()
-        await type_text(
-            composer,
-            message,
-            min_ms=TYPE_SLEEP_MIN_MS,
-            max_ms=TYPE_SLEEP_MAX_MS,
-            pause_ms=TYPE_PAUSE_MS,
-            pause_chance=TYPE_PAUSE_CHANCE,
-        )
+
+        for index, line in enumerate(message.split("\n")):
+            if index:
+                await composer.press("Shift+Enter")
+
+            await type_text(
+                composer,
+                line,
+                min_ms=TYPE_SLEEP_MIN_MS,
+                max_ms=TYPE_SLEEP_MAX_MS,
+                pause_ms=TYPE_PAUSE_MS,
+                pause_chance=TYPE_PAUSE_CHANCE,
+            )
+
         await composer.press("Enter")
 
-        return await self._wait_sent(message)
+        return await self._wait_sent(message, before)
+
+    @staticmethod
+    def _sent_args(message, before=None):
+        args = {
+            "articleSelector": MESSAGE_SEL_ARTICLE,
+            "composerSelector": ", ".join(MESSAGE_SEL_COMPOSER_CANDIDATES),
+            "message": message,
+        }
+
+        if before is not None:
+            args["before"] = before
+
+        return args
 
     async def _close_chat(self):
         composer = self._page.locator(", ".join(MESSAGE_SEL_COMPOSER_CANDIDATES)).first
@@ -506,15 +527,11 @@ class Message(ProfilePage):
 
         return sorted(messages, key=lambda m: m["timestamp"])
 
-    async def _wait_sent(self, message):
+    async def _wait_sent(self, message, before):
         sent = await wait_dom(
             self._page,
             "sent_state",
-            {
-                "articleSelector": MESSAGE_SEL_ARTICLE,
-                "composerSelector": ", ".join(MESSAGE_SEL_COMPOSER_CANDIDATES),
-                "message": message,
-            },
+            self._sent_args(message, before),
             timeout_ms=MESSAGE_SEND_POLL_MAX * MESSAGE_SLEEP_SEND_POLL * 1000,
         )
 

@@ -185,6 +185,10 @@ def _render_search(accounts):
     for index, (account, handle) in enumerate(zip(accounts, handles, strict=True), 1):
         name = account.get("name")
         name = name if name and name != account.get("username") else ""
+        followers = account.get("followersCount")
+
+        if followers is not None:
+            name = f"{name}  {_paint(_plural(followers, 'abonné'), 'gray')}".strip()
 
         lines.append(
             f"  {_paint(str(index).rjust(index_width), 'gray')}  "
@@ -387,4 +391,7 @@ def render(command, data, last=None):
     return renderer(data)
 
 
-__all__ = ["render"]
+paint = _paint
+
+
+__all__ = ["paint", "render"]

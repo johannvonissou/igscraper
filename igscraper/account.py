@@ -4,8 +4,11 @@ from urllib.parse import parse_qs, urlparse
 from patchright.async_api import Error as PlaywrightError
 
 from igscraper.constants import (
+    ACCOUNT_BIO_LINK_BUTTON_PATTERN,
+    ACCOUNT_BIO_LINK_EXCLUDED_HOSTS,
     ACCOUNT_BIO_LINK_HOST,
     ACCOUNT_BIO_LINK_QUERY,
+    ACCOUNT_BIO_LINK_SCHEME,
     ACCOUNT_BIO_MORE_TEXT,
     ACCOUNT_FOLLOW_MUTATION_HINTS,
     ACCOUNT_FOLLOW_TEXTS,
@@ -14,6 +17,8 @@ from igscraper.constants import (
     ACCOUNT_FOLLOWING_TEXT,
     ACCOUNT_NAME_LINE_INDEX,
     ACCOUNT_OWN_TEXT,
+    ACCOUNT_POST_HREF_PATTERN,
+    ACCOUNT_POSTS_STABLE,
     ACCOUNT_POSTS_TEXT,
     ACCOUNT_PRIVATE_TEXT,
     ACCOUNT_REQUESTED_CANCEL_TEXT,
@@ -24,6 +29,7 @@ from igscraper.constants import (
     ACCOUNT_SEL_BUTTONS,
     ACCOUNT_SEL_FOLLOWERS,
     ACCOUNT_SEL_HEADER,
+    ACCOUNT_SEL_HEADER_BUTTONS,
     ACCOUNT_SEL_POSTS,
     ACCOUNT_SEL_SECTION,
     ACCOUNT_SEL_USERNAME,
@@ -33,6 +39,7 @@ from igscraper.constants import (
     ACCOUNT_TO_FOLLOW,
     ACCOUNT_TO_FOLLOW_CLICK,
     ACCOUNT_TO_FOLLOW_RESPONSE,
+    ACCOUNT_TO_POSTS,
     ACCOUNT_TO_PROFILE_READY,
     POLL_DELAY_GROWTH,
     POLL_DELAY_MAX,
@@ -45,7 +52,7 @@ from igscraper.constants import (
     warn,
 )
 from igscraper.errors import guard
-from igscraper.navigation import ProfilePage, wait_dom
+from igscraper.navigation import ProfilePage, parse_count, wait_dom
 from igscraper.scripts import script
 
 
@@ -113,6 +120,8 @@ class Account(ProfilePage):
         if username is None:
             return None
 
+        await self._follow_texts()
+
         return await self._collect(username)
 
     @staticmethod
@@ -142,12 +151,7 @@ class Account(ProfilePage):
 
     @staticmethod
     def _count_to_int(text):
-        if text is None:
-            return None
-
-        cleaned = text.replace("\u202f", "").replace("\u00a0", "").replace(" ", "").replace(",", "")
-
-        return int(cleaned) if cleaned.isdigit() else None
+        return parse_count(text)
 
     @staticmethod
     def _has_followed(texts):
@@ -180,6 +184,9 @@ class Account(ProfilePage):
 
         overview = await self._page.evaluate(script("account_overview"), self._overview_args(username))
         lines = self._clean_lines(overview["sectionText"])
+
+        if not overview["appearsPrivate"] and self._line_to_count(lines, ACCOUNT_POSTS_TEXT):
+            overview["posts"] = await self._settled_posts(username, overview["posts"])
         texts = overview["buttonTexts"]
         followers = self._count_to_int(overview["followersTitle"])
 
@@ -221,10 +228,38 @@ class Account(ProfilePage):
             "bioSelector": ACCOUNT_SEL_BIO,
             "addressSelector": ACCOUNT_SEL_ADDRESS,
             "bioLinkSelector": ACCOUNT_SEL_BIO_LINK,
+            "bioLinkExcludedHosts": list(ACCOUNT_BIO_LINK_EXCLUDED_HOSTS),
+            "bioLinkButtonSelector": ACCOUNT_SEL_HEADER_BUTTONS,
+            "bioLinkButtonPattern": ACCOUNT_BIO_LINK_BUTTON_PATTERN,
+            "bioLinkScheme": ACCOUNT_BIO_LINK_SCHEME,
             "privateText": ACCOUNT_PRIVATE_TEXT,
             "postSelector": ACCOUNT_SEL_POSTS,
+            "postHrefPattern": ACCOUNT_POST_HREF_PATTERN,
             "buttonSelector": ACCOUNT_SEL_BUTTONS,
         }
+
+    async def _settled_posts(self, username, posts):
+        deadline = time.monotonic() + ACCOUNT_TO_POSTS / 1000
+        stable_since = time.monotonic()
+        delay = POLL_DELAY_START
+
+        while time.monotonic() < deadline:
+            if posts and time.monotonic() - stable_since >= ACCOUNT_POSTS_STABLE:
+                return posts
+
+            await asleep(delay)
+
+            delay = min(delay * POLL_DELAY_GROWTH, POLL_DELAY_MAX)
+            overview = await self._page.evaluate(script("account_overview"), self._overview_args(username))
+
+            if len(overview["posts"]) != len(posts):
+                posts = overview["posts"]
+                stable_since = time.monotonic()
+
+        if not posts:
+            debug(f"@{username} : grille de publications non chargée.")
+
+        return posts
 
     async def _expand_bio(self):
         plus = self._page.locator(ACCOUNT_SEL_HEADER).get_by_text(ACCOUNT_BIO_MORE_TEXT, exact=True)
