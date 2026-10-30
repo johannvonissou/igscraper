@@ -1,9 +1,12 @@
+from contextlib import suppress
+
 from patchright.async_api import Error as PlaywrightError
 
 from igscraper.browser import BrowserOptions, first_page, stealth_browser
-from igscraper.constants import SESSION_DEFAULTS, error, info, success, warn
+from igscraper.constants import MAIN_PAGE, SESSION_DEFAULTS, error, info, success, warn
 from igscraper.errors import BrowserError, LoginError, summarize
 from igscraper.login import Login, LoginResult
+from igscraper.navigation import goto_page
 
 
 class SessionOptions:
@@ -41,28 +44,28 @@ async def _login(username, password, options):
     async with stealth_browser(browser) as context:
         page = await first_page(context)
 
-        return await Login(
+        result = await Login(
             page,
             manual_resolution=not options.headless,
             manual_timeout=options.manual_timeout,
         ).login(username=username, password=password)
 
+        if not result.success:
+            return result, False
 
-async def _verify(sessionid, options):
-    browser = BrowserOptions(
-        user_data_dir=options.profile_dir,
-        headless=True,
-    )
+        return result, await _verified_session(context, result, options)
 
-    async with stealth_browser(browser) as context:
-        page = await first_page(context)
 
-        result = await Login(page, manual_resolution=False).login(sessionid=sessionid)
+async def _verify(context):
+    page = await context.new_page()
 
-        if not result:
-            warn(f"Vérification headless échouée : {result.reason}.")
+    try:
+        await goto_page(page, MAIN_PAGE)
 
-        return result.success
+        return await Login(page, manual_resolution=False).is_authenticated()
+    finally:
+        with suppress(PlaywrightError):
+            await page.close()
 
 
 async def _attempt(username, password, options):
@@ -74,10 +77,10 @@ async def _attempt(username, password, options):
         reason = summarize(exc)
         error(f"Connexion interrompue : {reason}.")
 
-        return LoginResult(success=False, reason=reason)
+        return LoginResult(success=False, reason=reason), False
 
 
-async def _verified_session(result, options):
+async def _verified_session(context, result, options):
     if not result or not result.sessionid:
         return False
 
@@ -87,13 +90,13 @@ async def _verified_session(result, options):
         return True
 
     try:
-        verified = await _verify(result.sessionid, options)
+        verified = await _verify(context)
     except (BrowserError, PlaywrightError, OSError) as exc:
-        warn(f"Vérification headless interrompue : {summarize(exc)}.")
+        warn(f"Vérification interrompue : {summarize(exc)}.")
         verified = False
 
     if verified:
-        success("Session opérationnelle en headless.")
+        success("Session opérationnelle dans le contexte courant.")
 
         return True
 
@@ -112,9 +115,9 @@ async def establish_session_result(username=None, password=None, options=None):
     target = f"@{username}" if username else "profil persistant"
     info(f"Connexion au {target}.")
 
-    result = await _attempt(username, password, config)
+    result, verified = await _attempt(username, password, config)
 
-    if await _verified_session(result, config):
+    if verified:
         return result
 
     error("Impossible d'établir une session valide.")

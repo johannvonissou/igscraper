@@ -5,7 +5,6 @@ from patchright.async_api import Error as PlaywrightError
 from patchright.async_api import TimeoutError as PlaywrightTimeoutError
 
 from igscraper.constants import (
-    GLOBAL_SLEEP_WRITE,
     LOGIN_BTN_NAME_PATTERN,
     LOGIN_CHALLENGES,
     LOGIN_COOKIE_DOMAIN,
@@ -24,8 +23,6 @@ from igscraper.constants import (
     LOGIN_SEL_SAVE_LOGIN_CANDIDATES,
     LOGIN_SLEEP_INTER,
     LOGIN_SLEEP_MANUAL_POLL,
-    LOGIN_SLEEP_POLL,
-    LOGIN_SLEEP_POLL_OUTCOME,
     LOGIN_TO_ATTRIBUTE,
     LOGIN_TO_COOKIES,
     LOGIN_TO_LATER,
@@ -33,17 +30,25 @@ from igscraper.constants import (
     LOGIN_TO_LOGIN_FORM,
     LOGIN_TO_MANUAL,
     LOGIN_TO_SAVE_LOGIN,
+    LOGIN_TYPE_PAUSE_CHANCE,
+    LOGIN_TYPE_PAUSE_MS,
+    LOGIN_TYPE_SLEEP_MAX_MS,
+    LOGIN_TYPE_SLEEP_MIN_MS,
     LOGIN_URL_CHALLENGE,
     LOGIN_URL_RECAPTCHA,
     MAIN_PAGE,
+    POLL_DELAY_GROWTH,
+    POLL_DELAY_MAX,
+    POLL_DELAY_START,
     asleep,
+    debug,
     error,
     info,
     success,
     warn,
 )
 from igscraper.errors import summarize
-from igscraper.navigation import click_first, goto_page, is_present
+from igscraper.navigation import click_first, goto_page, is_present, poll_for, type_text
 
 
 class LoginMethod:
@@ -227,10 +232,24 @@ class Login:
             return False
 
         await email.fill("")
-        await email.press_sequentially(username, delay=GLOBAL_SLEEP_WRITE)
+        await type_text(
+            email,
+            username,
+            min_ms=LOGIN_TYPE_SLEEP_MIN_MS,
+            max_ms=LOGIN_TYPE_SLEEP_MAX_MS,
+            pause_ms=LOGIN_TYPE_PAUSE_MS,
+            pause_chance=LOGIN_TYPE_PAUSE_CHANCE,
+        )
 
         await credential.fill("")
-        await credential.press_sequentially(password, delay=GLOBAL_SLEEP_WRITE)
+        await type_text(
+            credential,
+            password,
+            min_ms=LOGIN_TYPE_SLEEP_MIN_MS,
+            max_ms=LOGIN_TYPE_SLEEP_MAX_MS,
+            pause_ms=LOGIN_TYPE_PAUSE_MS,
+            pause_chance=LOGIN_TYPE_PAUSE_CHANCE,
+        )
 
         return True
 
@@ -272,6 +291,7 @@ class Login:
 
     async def _wait_enabled(self, button, timeout_ms=LOGIN_TO_LOGIN_BTN):
         deadline = time.monotonic() + timeout_ms / 1000
+        delay = POLL_DELAY_START
 
         while time.monotonic() < deadline:
             try:
@@ -283,13 +303,16 @@ class Login:
             if not disabled and enabled:
                 return True
 
-            await asleep(LOGIN_SLEEP_POLL)
+            await asleep(delay)
+
+            delay = min(delay * POLL_DELAY_GROWTH, POLL_DELAY_MAX)
 
         return False
 
     async def _await_outcome(self, method):
         deadline = time.monotonic() + LOGIN_TO_LOGIN_FORM / 1000
         started = time.monotonic()
+        delay = POLL_DELAY_START
 
         while time.monotonic() < deadline:
             outcome = await self._poll_outcome(method, started)
@@ -297,7 +320,9 @@ class Login:
             if outcome is not LOGIN_PENDING:
                 return outcome
 
-            await asleep(LOGIN_SLEEP_POLL_OUTCOME)
+            await asleep(delay)
+
+            delay = min(delay * POLL_DELAY_GROWTH, POLL_DELAY_MAX)
 
         return await self._final_outcome(method)
 
@@ -327,9 +352,7 @@ class Login:
         return LOGIN_PENDING
 
     async def _sessionid_outcome(self, method):
-        await asleep(LOGIN_SLEEP_INTER / 3)
-
-        if await self._is_authenticated():
+        if await poll_for(self._is_authenticated, timeout_s=LOGIN_SLEEP_INTER):
             return None
 
         return self._fail(method, "sessionid invalide ou expiré")
@@ -357,7 +380,7 @@ class Login:
                 label="Popup d'enregistrement des identifiants",
             )
 
-            await asleep(LOGIN_SLEEP_INTER)
+            debug("Popup d'enregistrement traitée.")
 
         await click_first(
             self._page,

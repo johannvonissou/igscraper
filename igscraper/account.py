@@ -5,6 +5,7 @@ from patchright.async_api import Error as PlaywrightError
 
 from igscraper.constants import (
     ACCOUNT_BIO_MORE_TEXT,
+    ACCOUNT_FOLLOW_MUTATION_HINTS,
     ACCOUNT_FOLLOW_TEXTS,
     ACCOUNT_FOLLOWED_TEXT,
     ACCOUNT_FOLLOWERS_TEXT,
@@ -22,32 +23,45 @@ from igscraper.constants import (
     ACCOUNT_SEL_FOLLOWERS,
     ACCOUNT_SEL_HEADER,
     ACCOUNT_SEL_POSTS,
+    ACCOUNT_SEL_SECTION,
     ACCOUNT_SEL_USERNAME,
-    ACCOUNT_SLEEP_INTER,
     ACCOUNT_STATS_SUFFIXES,
-    ACCOUNT_TO_ATTRIBUTE,
     ACCOUNT_TO_BIO_CLICK,
+    ACCOUNT_TO_BIO_EXPAND,
     ACCOUNT_TO_FOLLOW,
     ACCOUNT_TO_FOLLOW_CLICK,
+    ACCOUNT_TO_FOLLOW_RESPONSE,
+    ACCOUNT_TO_PROFILE_READY,
+    POLL_DELAY_GROWTH,
+    POLL_DELAY_MAX,
+    POLL_DELAY_START,
     asleep,
+    debug,
     error,
     info,
     success,
     warn,
 )
 from igscraper.errors import guard
-from igscraper.navigation import ProfilePage
+from igscraper.navigation import ProfilePage, wait_dom
+from igscraper.scripts import script
 
 
 class Account(ProfilePage):
+    def __init__(self, page):
+        super().__init__(page)
+
+        self._buttons = None
+
     @guard
     async def follow(self, username):
+        self._buttons = None
         username = await self.open_profile(username)
 
         if username is None:
             return False
 
-        texts = await self._button_texts()
+        texts = await self._follow_texts()
         followed = self._has_followed(texts)
         requested = self._has_requested(texts)
 
@@ -68,19 +82,21 @@ class Account(ProfilePage):
 
         info(f"Clic sur le bouton « {texts[index]} » pour @{username}.")
 
-        try:
-            await button.click(timeout=ACCOUNT_TO_FOLLOW_CLICK)
-        except PlaywrightError:
-            error(f"@{username} : clic sur le bouton d'abonnement impossible.")
+        confirmed = await self._click_follow(button, username)
 
+        if confirmed is False:
             return False
 
-        if not await self._wait_follow_state():
+        texts = await self._wait_follow_state(confirmed) or []
+        followed = self._has_followed(texts)
+        requested = self._has_requested(texts) or (confirmed and await self._appears_private())
+
+        if not followed and not requested:
             error(f"@{username} : état d'abonnement non confirmé après le clic.")
 
             return False
 
-        if await self._is_followed():
+        if followed:
             success(f"Abonnement confirmé : @{username} est suivi(e).")
         else:
             success(f"Demande d'abonnement envoyée à @{username} (compte privé) : en attente de validation.")
@@ -89,6 +105,7 @@ class Account(ProfilePage):
 
     @guard
     async def retrieve(self, username):
+        self._buttons = None
         username = await self.open_profile(username)
 
         if username is None:
@@ -142,24 +159,47 @@ class Account(ProfilePage):
     def _find_button(texts, wanted):
         return next((index for index, text in enumerate(texts) if text in wanted), None)
 
+    @staticmethod
+    def _is_follow_response(response):
+        request = response.request
+
+        if request.method != "POST" or "/graphql" not in request.url:
+            return False
+
+        try:
+            body = (request.post_data or "").lower()
+        except PlaywrightError:
+            return False
+
+        return any(hint in body for hint in ACCOUNT_FOLLOW_MUTATION_HINTS)
+
     async def _collect(self, username):
         await self._expand_bio()
 
-        section = self._page.locator(ACCOUNT_SEL_USERNAME).first.locator("xpath=ancestor::section[1]")
-        lines = self._clean_lines(await section.inner_text())
+        overview = await self._page.evaluate(script("account_overview"), self._overview_args(username))
+        lines = self._clean_lines(overview["sectionText"])
+        texts = overview["buttonTexts"]
+        followers = self._count_to_int(overview["followersTitle"])
+
+        if followers is None:
+            followers = self._line_to_count(lines, ACCOUNT_FOLLOWERS_TEXT)
+
+        bio_link = overview["bioLink"]
+
+        self._buttons = texts
 
         account = {
             "username": username,
             "name": self._get_name(lines),
-            "appearsPrivate": await self._appears_private(),
-            "isFollowed": await self._is_followed(),
+            "appearsPrivate": overview["appearsPrivate"],
+            "isFollowed": self._has_followed(texts),
             "postsCount": self._line_to_count(lines, ACCOUNT_POSTS_TEXT),
-            "followersCount": await self._get_followers(lines),
+            "followersCount": followers,
             "followingCount": self._line_to_count(lines, ACCOUNT_FOLLOWING_TEXT),
-            "bio": await self._get_bio(),
-            "address": await self._get_address(),
-            "url": await self._get_bio_link(),
-            "latestPosts": await self._get_posts(username),
+            "bio": overview["bio"],
+            "address": overview["address"],
+            "url": self._decode_bio_link(bio_link) if bio_link else None,
+            "latestPosts": overview["posts"],
         }
 
         info(
@@ -169,60 +209,28 @@ class Account(ProfilePage):
 
         return account
 
-    async def _get_followers(self, lines):
-        title = self._page.locator(ACCOUNT_SEL_FOLLOWERS).first
-
-        if await title.count():
-            try:
-                value = self._count_to_int(await title.get_attribute("title", timeout=ACCOUNT_TO_ATTRIBUTE))
-            except PlaywrightError:
-                value = None
-
-            if value is not None:
-                return value
-
-        return self._line_to_count(lines, ACCOUNT_FOLLOWERS_TEXT)
-
-    async def _get_bio(self):
-        bio = self._page.locator(ACCOUNT_SEL_BIO).first
-
-        if not await bio.count():
-            return ""
-
-        try:
-            return (await bio.inner_text()).strip()
-        except PlaywrightError:
-            return ""
-
-    async def _get_address(self):
-        address = self._page.locator(ACCOUNT_SEL_ADDRESS).first
-
-        if not await address.count():
-            return None
-
-        try:
-            return (await address.inner_text()).strip() or None
-        except PlaywrightError:
-            return None
-
-    async def _get_bio_link(self):
-        link = self._page.locator(ACCOUNT_SEL_BIO_LINK).first
-
-        if not await link.count():
-            return None
-
-        try:
-            href = await link.get_attribute("href", timeout=ACCOUNT_TO_ATTRIBUTE)
-        except PlaywrightError:
-            return None
-
-        return self._decode_bio_link(href) if href else None
+    @staticmethod
+    def _overview_args(username):
+        return {
+            "username": username,
+            "usernameSelector": ACCOUNT_SEL_USERNAME,
+            "sectionSelector": ACCOUNT_SEL_SECTION,
+            "followerSelector": ACCOUNT_SEL_FOLLOWERS,
+            "bioSelector": ACCOUNT_SEL_BIO,
+            "addressSelector": ACCOUNT_SEL_ADDRESS,
+            "bioLinkSelector": ACCOUNT_SEL_BIO_LINK,
+            "privateText": ACCOUNT_PRIVATE_TEXT,
+            "postSelector": ACCOUNT_SEL_POSTS,
+            "buttonSelector": ACCOUNT_SEL_BUTTONS,
+        }
 
     async def _expand_bio(self):
         plus = self._page.locator(ACCOUNT_SEL_HEADER).get_by_text(ACCOUNT_BIO_MORE_TEXT, exact=True)
 
         if not await plus.count():
             return False
+
+        before = await self._page.evaluate(script("text_length"), ACCOUNT_SEL_BIO)
 
         try:
             await plus.first.click(timeout=ACCOUNT_TO_BIO_CLICK)
@@ -231,34 +239,86 @@ class Account(ProfilePage):
 
         info("Bio étendue via le bouton « plus ».")
 
-        await asleep(ACCOUNT_SLEEP_INTER)
+        await wait_dom(
+            self._page,
+            "text_longer",
+            {"selector": ACCOUNT_SEL_BIO, "length": before},
+            timeout_ms=ACCOUNT_TO_BIO_EXPAND,
+        )
 
         return True
 
-    async def _get_posts(self, username):
-        posts = []
-        seen = set()
+    async def _click_follow(self, button, username):
+        clicked = False
+        answered = False
 
-        for anchor in await self._page.locator(ACCOUNT_SEL_POSTS).all():
-            href = await anchor.get_attribute("href")
+        try:
+            async with self._page.expect_response(
+                self._is_follow_response,
+                timeout=ACCOUNT_TO_FOLLOW_RESPONSE,
+            ) as awaited:
+                await button.click(timeout=ACCOUNT_TO_FOLLOW_CLICK)
+                clicked = True
 
-            if not href or href in seen or not href.startswith(f"/{username}/"):
-                continue
+                await awaited.value
 
-            seen.add(href)
+                answered = True
+        except PlaywrightError:
+            pass
 
-            image = anchor.locator("img").first
+        if not clicked:
+            error(f"@{username} : clic sur le bouton d'abonnement impossible.")
 
-            if await image.count():
-                description = (await image.get_attribute("alt")) or ""
-                image_url = await image.get_attribute("src")
-            else:
-                description = ""
-                image_url = None
+            return False
 
-            posts.append({"description": description, "imageUrl": image_url})
+        if not answered:
+            debug(f"@{username} : réponse d'abonnement non observée, vérification DOM.")
 
-        return posts
+            return None
+
+        return True
+
+    async def _follow_texts(self):
+        deadline = time.monotonic() + ACCOUNT_TO_PROFILE_READY / 1000
+        delay = POLL_DELAY_START
+        wanted = (
+            *ACCOUNT_FOLLOW_TEXTS,
+            ACCOUNT_FOLLOWED_TEXT,
+            ACCOUNT_OWN_TEXT,
+            ACCOUNT_REQUESTED_TEXT,
+            ACCOUNT_REQUESTED_CANCEL_TEXT,
+        )
+
+        while True:
+            texts = await self._button_texts(refresh=True)
+
+            if any(text in wanted for text in texts):
+                return texts
+
+            if time.monotonic() >= deadline:
+                return texts
+
+            await asleep(delay)
+
+            delay = min(delay * POLL_DELAY_GROWTH, POLL_DELAY_MAX)
+
+    async def _wait_follow_state(self, confirmed):
+        timeout = ACCOUNT_TO_FOLLOW_RESPONSE / 1000 if confirmed else ACCOUNT_TO_FOLLOW
+        deadline = time.monotonic() + timeout
+        delay = POLL_DELAY_START
+
+        while True:
+            texts = await self._button_texts(refresh=True)
+
+            if self._has_followed(texts) or self._has_requested(texts):
+                return texts
+
+            if time.monotonic() >= deadline:
+                return texts if confirmed else None
+
+            await asleep(delay)
+
+            delay = min(delay * POLL_DELAY_GROWTH, POLL_DELAY_MAX)
 
     def _line_to_count(self, lines, suffix):
         line = next((line for line in lines if line.endswith(suffix)), None)
@@ -271,25 +331,17 @@ class Account(ProfilePage):
     async def _appears_private(self):
         return await self._page.get_by_text(ACCOUNT_PRIVATE_TEXT).count() > 0
 
-    async def _button_texts(self):
-        return [text.strip() for text in await self._page.locator(ACCOUNT_SEL_BUTTONS).all_inner_texts()]
+    async def _button_texts(self, *, refresh=False):
+        if refresh or self._buttons is None:
+            self._buttons = await self._page.evaluate(script("button_texts"), ACCOUNT_SEL_BUTTONS)
+
+        return self._buttons
 
     async def _is_followed(self):
         return self._has_followed(await self._button_texts())
 
     async def _is_requested(self):
         return self._has_requested(await self._button_texts())
-
-    async def _wait_follow_state(self):
-        deadline = time.monotonic() + ACCOUNT_TO_FOLLOW
-
-        while time.monotonic() < deadline:
-            if await self._is_followed() or await self._is_requested():
-                return True
-
-            await asleep(ACCOUNT_SLEEP_INTER)
-
-        return False
 
 
 __all__ = ["Account"]

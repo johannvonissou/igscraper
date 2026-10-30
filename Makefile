@@ -13,14 +13,7 @@ help:
 
 build:
 	uv sync
-	@[ -f $(CHROME_BIN) ] || { \
-		mkdir -p vendor; \
-		curl -fSL -o /tmp/chrome.deb $(CHROME_DEB_URL); \
-		( cd vendor && ar x /tmp/chrome.deb && tar -xf data.tar.xz \
-			&& rm -f control.tar.xz data.tar.xz debian-binary ); \
-		mv vendor/opt/google/chrome vendor/chrome; \
-		rm -rf vendor/opt vendor/usr; \
-	}
+	uv run igscraper chrome install	
 
 check:
 	uvx ruff check igscraper

@@ -15,7 +15,7 @@ from igscraper.message import Message
 from igscraper.search import Search
 from igscraper.session import SessionOptions, establish_session, establish_session_result, get_sessionid
 
-__version__ = "6.0.0"
+__version__ = "7.0.0"
 
 __all__ = [
     "Account",

@@ -1,25 +1,25 @@
-from urllib.parse import urljoin
-
 from patchright.async_api import TimeoutError as PlaywrightTimeoutError
 
 from igscraper.constants import (
     SEARCH_PAGE,
     SEARCH_RESULTS_IMG_TEXT,
     SEARCH_SEL_INPUT_CANDIDATES,
-    SEARCH_SEL_RESULTS_CONTAINER,
     SEARCH_SEL_RESULTS_IMG,
     SEARCH_SEL_RESULTS_NAMES,
     SEARCH_SEL_RESULTS_URL,
-    SEARCH_SLEEP_INTER,
     SEARCH_TO_RESULTS,
-    asleep,
+    TYPE_PAUSE_CHANCE,
+    TYPE_PAUSE_MS,
+    TYPE_SLEEP_MAX_MS,
+    TYPE_SLEEP_MIN_MS,
     debug,
     error,
     info,
     success,
 )
 from igscraper.errors import guard
-from igscraper.navigation import goto_page
+from igscraper.navigation import goto_page, type_text
+from igscraper.scripts import script
 
 
 class Search:
@@ -54,10 +54,16 @@ class Search:
             return None
 
         await field.fill("")
-        await field.press_sequentially(query)
+        await type_text(
+            field,
+            query,
+            min_ms=TYPE_SLEEP_MIN_MS,
+            max_ms=TYPE_SLEEP_MAX_MS,
+            pause_ms=TYPE_PAUSE_MS,
+            pause_chance=TYPE_PAUSE_CHANCE,
+        )
         await field.press("Enter")
 
-        await asleep(SEARCH_SLEEP_INTER)
         await self._wait_results()
 
         accounts = await self._collect()
@@ -86,55 +92,15 @@ class Search:
             debug("Aucun résultat visible dans le délai imparti.")
 
     async def _collect(self):
-        images = self._page.locator(SEARCH_SEL_RESULTS_IMG)
-
-        accounts = []
-        seen = set()
-
-        for img in await images.all():
-            alt = await img.get_attribute("alt") or ""
-            username = alt.removeprefix(SEARCH_RESULTS_IMG_TEXT).strip()
-
-            if not username or username in seen:
-                continue
-
-            container = img.locator(SEARCH_SEL_RESULTS_CONTAINER)
-            names = await container.locator(SEARCH_SEL_RESULTS_NAMES).all_inner_texts()
-
-            labels = list(dict.fromkeys(name.strip() for name in names if name.strip()))
-            name = next((label for label in labels if label != username), username)
-
-            url = await self._result_url(container, username)
-
-            if url is None:
-                continue
-
-            accounts.append(
-                {
-                    "profilePictureUrl": await img.get_attribute("src"),
-                    "username": username,
-                    "name": name,
-                    "url": url,
-                },
-            )
-
-            seen.add(username)
-
-        return accounts
-
-    async def _result_url(self, container, username):
-        for link in await container.locator(SEARCH_SEL_RESULTS_URL).all():
-            href = await link.get_attribute("href")
-
-            if not href:
-                continue
-
-            if href.strip("/").split("/", 1)[0] != username:
-                continue
-
-            return urljoin(self._page.url, href)
-
-        return None
+        return await self._page.evaluate(
+            script("search_results"),
+            {
+                "prefix": SEARCH_RESULTS_IMG_TEXT,
+                "imgSelector": SEARCH_SEL_RESULTS_IMG,
+                "namesSelector": SEARCH_SEL_RESULTS_NAMES,
+                "linkSelector": SEARCH_SEL_RESULTS_URL,
+            },
+        )
 
 
 __all__ = ["Search"]

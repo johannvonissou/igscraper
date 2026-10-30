@@ -1,6 +1,6 @@
 # igscraper
 
-`igscraper` est un client Python asynchrone et une interface en ligne de commande (CLI) pour interagir avec Instagram. Il est basé sur [patchright](https://github.com/kaliiiiiiiiii/patchright) pour automatiser un navigateur Chromium.
+`igscraper` est un client Python asynchrone et une interface en ligne de commande (CLI) pour interagir avec Instagram. Il est basé sur [patchright](https://github.com/kaliiiiiiiiii/patchright).
 
 ---
 
@@ -22,9 +22,10 @@ Le projet utilise [uv](https://github.com/astral-sh/uv).
 - `uv`
 
 ### Installation
-Pour installer le projet et télécharger le navigateur Chromium :
+Pour installer le projet et télécharger Chrome :
 ```bash
-make build
+uv sync
+uv run igscraper chrome install
 ```
 
 ---
@@ -45,6 +46,24 @@ Le CLI s'utilise avec la commande `igscraper` ou `python -m igscraper`.
 - `--version` : Affiche la version.
 
 ### Commandes
+
+#### Navigateur Chrome (`chrome`)
+Télécharge le paquet `.deb` officiel et installe Chrome dans `vendor/chrome`, puis vérifie qu'il démarre :
+```bash
+igscraper chrome install
+```
+Réinstallation forcée ou paquet personnalisé :
+```bash
+igscraper chrome install --force --url "https://exemple/google-chrome.deb"
+```
+Supprime Chrome, le profil persistant et son cache (la session est perdue après confirmation) :
+```bash
+igscraper chrome clean
+```
+Options utiles : `--dry-run` (affiche sans supprimer), `-y` (sans confirmation), `--keep-profile` (conserve la session), `--keep-chrome`, `--profile DIR` (profil supplémentaire).
+```bash
+igscraper chrome clean --keep-profile
+```
 
 #### Connexion (`login`)
 Permet de se connecter et d'obtenir le cookie de session.

@@ -1,4 +1,8 @@
+import platform
+import re
+import subprocess
 from contextlib import asynccontextmanager
+from functools import cache
 from pathlib import Path
 
 from patchright.async_api import Error as PlaywrightError
@@ -9,16 +13,35 @@ from igscraper.constants import (
     BROWSER_CHROME_PATH,
     BROWSER_DEFAULTS,
     BROWSER_FALLBACK_GIF_CONTENT_TYPE,
-    BROWSER_FALLBACK_MEDIA_CONTENT_TYPE,
+    BROWSER_GPU_FLAGS,
+    BROWSER_GPU_PATH,
     BROWSER_MEDIA_BLOCKED,
     BROWSER_MEDIA_GIF,
+    BROWSER_MEDIA_PATTERNS,
     BROWSER_MEDIA_RESOURCE_TYPE,
     BROWSER_MEDIA_STATUS,
     BROWSER_PROFILE_DIR,
+    BROWSER_WINDOW_HEIGHT,
+    BROWSER_WINDOW_WIDTH,
     debug,
     info,
 )
 from igscraper.errors import BrowserError, summarize
+
+USER_AGENT_TEMPLATES = {
+    "Linux": (
+        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/{major}.0.0.0 Safari/537.36"
+    ),
+    "Darwin": (
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/{major}.0.0.0 Safari/537.36"
+    ),
+    "Windows": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/{major}.0.0.0 Safari/537.36"
+    ),
+}
 
 
 class BrowserOptions:
@@ -29,6 +52,7 @@ class BrowserOptions:
         "locale",
         "slow_mo",
         "timezone_id",
+        "user_agent",
         "user_data_dir",
     )
 
@@ -52,12 +76,15 @@ async def soft_block_media(route):
 
         return
 
-    is_media = resource_type == BROWSER_MEDIA_RESOURCE_TYPE
+    if resource_type == BROWSER_MEDIA_RESOURCE_TYPE:
+        await route.abort()
+
+        return
 
     await route.fulfill(
         status=BROWSER_MEDIA_STATUS,
-        body=b"" if is_media else BROWSER_MEDIA_GIF,
-        content_type=BROWSER_FALLBACK_MEDIA_CONTENT_TYPE if is_media else BROWSER_FALLBACK_GIF_CONTENT_TYPE,
+        body=BROWSER_MEDIA_GIF,
+        content_type=BROWSER_FALLBACK_GIF_CONTENT_TYPE,
     )
 
 
@@ -77,6 +104,70 @@ def _launch_kwargs():
     return {"executable_path": str(chosen)}
 
 
+@cache
+def chrome_major_version():
+    try:
+        result = subprocess.run(  # noqa: S603
+            [str(BROWSER_CHROME_PATH), "--version"],
+            capture_output=True,
+            check=False,
+            text=True,
+            timeout=10,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+
+    match = re.search(r"(\d+)\.", result.stdout or "")
+
+    return match.group(1) if match else None
+
+
+@cache
+def headless_user_agent():
+    major = chrome_major_version()
+
+    if major is None:
+        return None
+
+    template = USER_AGENT_TEMPLATES.get(platform.system())
+
+    return template.format(major=major) if template else None
+
+
+def accept_language(locale):
+    if not locale:
+        return None
+
+    base = locale.split("-")[0]
+
+    return locale if base == locale else f"{locale},{base}"
+
+
+def launch_args(config):
+    size = f"{BROWSER_WINDOW_WIDTH},{BROWSER_WINDOW_HEIGHT}"
+    args = [*BROWSER_ARGS, f"--window-size={size}"]
+
+    if config.headless and platform.system() == "Linux":
+        args.append(f"--ozone-override-screen-size={size}")
+
+        if BROWSER_GPU_PATH.is_dir():
+            args.extend(BROWSER_GPU_FLAGS)
+
+    language = accept_language(config.locale)
+
+    if language:
+        args.append(f"--accept-lang={language}")
+
+    return [*args, *(config.extra_args or ())]
+
+
+def resolve_user_agent(config):
+    if config.user_agent:
+        return config.user_agent
+
+    return headless_user_agent() if config.headless else None
+
+
 @asynccontextmanager
 async def stealth_browser(options=None):
     config = options or BrowserOptions()
@@ -84,15 +175,18 @@ async def stealth_browser(options=None):
     profile = resolve_profile_dir(config.user_data_dir)
     profile.mkdir(parents=True, exist_ok=True)
 
-    args = [*BROWSER_ARGS, *(config.extra_args or ())]
-
     launch_options = {
         "headless": config.headless,
         "no_viewport": True,
         "locale": config.locale,
         "timezone_id": config.timezone_id,
-        "args": args,
+        "args": launch_args(config),
     }
+
+    user_agent = resolve_user_agent(config)
+
+    if user_agent:
+        launch_options["user_agent"] = user_agent
 
     if config.slow_mo is not None:
         launch_options["slow_mo"] = config.slow_mo
@@ -109,7 +203,8 @@ async def stealth_browser(options=None):
             raise BrowserError(msg) from exc
 
         if config.block_media:
-            await context.route("**/*", soft_block_media)
+            for pattern in BROWSER_MEDIA_PATTERNS:
+                await context.route(pattern, soft_block_media)
 
         info(f"Navigateur prêt (headless={config.headless}, profil={profile}).")
 

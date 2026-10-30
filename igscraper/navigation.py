@@ -1,4 +1,6 @@
 import time
+from inspect import isawaitable
+from random import random, uniform
 from urllib.parse import urljoin
 
 from patchright.async_api import Error as PlaywrightError
@@ -6,16 +8,21 @@ from patchright.async_api import TimeoutError as PlaywrightTimeoutError
 
 from igscraper.constants import (
     ACCOUNT_SEL_USERNAME,
-    ACCOUNT_SLEEP_INTER,
     ACCOUNT_TO_PROFILE,
+    ACCOUNT_TO_PROFILE_READY,
     LOGIN_SLEEP_POLL,
     MAIN_PAGE,
     NAVIGATION_TO_CLICK,
+    POLL_DELAY_GROWTH,
+    POLL_DELAY_MAX,
+    POLL_DELAY_START,
+    TYPE_PAUSE_CHARS,
     asleep,
     debug,
     error,
     info,
 )
+from igscraper.scripts import script
 
 
 async def click_first(page, selectors, *, timeout_ms, label):
@@ -55,6 +62,56 @@ async def goto_page(page, url, *, wait_until="domcontentloaded"):
     await page.goto(url, wait_until=wait_until)
 
 
+async def poll_for(predicate, *, timeout_s, delay=POLL_DELAY_START):
+    deadline = time.monotonic() + max(timeout_s, 0)
+
+    while True:
+        result = predicate()
+
+        if isawaitable(result):
+            result = await result
+
+        if result:
+            return True
+
+        if time.monotonic() >= deadline:
+            return False
+
+        await asleep(delay)
+
+        delay = min(delay * POLL_DELAY_GROWTH, POLL_DELAY_MAX)
+
+
+async def wait_dom(page, name, arg=None, *, timeout_ms):
+    try:
+        await page.wait_for_function(script(name), arg=arg, timeout=timeout_ms)
+    except PlaywrightTimeoutError:
+        return False
+
+    return True
+
+
+async def type_text(  # noqa: PLR0913
+    locator,
+    text,
+    *,
+    min_ms,
+    max_ms,
+    pause_ms,
+    pause_chance,
+    pause_chars=TYPE_PAUSE_CHARS,
+):
+    for char in text:
+        await locator.press_sequentially(char)
+
+        delay = uniform(min_ms, max_ms) / 1000  # noqa: S311
+
+        if char in pause_chars and random() < pause_chance:  # noqa: S311
+            delay += uniform(*pause_ms) / 1000  # noqa: S311
+
+        await asleep(delay)
+
+
 class ProfilePage:
     def __init__(self, page):
         self._page = page
@@ -86,9 +143,33 @@ class ProfilePage:
 
             return False
 
-        await asleep(ACCOUNT_SLEEP_INTER)
+        await self.wait_profile_ready()
 
         return True
+
+    async def wait_profile_ready(self):
+        markers = (
+            "publications",
+            "followers",
+            "suivi",
+            "Suivre",
+            "S'abonner",
+            "Suivi(e)",
+            "Demandé",
+            "Modifier le profil",
+            "Ce profil est privé",
+        )
+
+        ready = await wait_dom(
+            self._page,
+            "profile_ready",
+            {"selector": "main header", "markers": list(markers)},
+            timeout_ms=ACCOUNT_TO_PROFILE_READY,
+        )
+
+        debug("Profil prêt." if ready else "Profil toujours en cours de chargement (continuation).")
+
+        return ready
 
     async def current_username(self):
         return (await self._page.locator(ACCOUNT_SEL_USERNAME).first.inner_text()).strip()
@@ -106,4 +187,12 @@ class ProfilePage:
         return (username or "").strip().lstrip("@").strip("/")
 
 
-__all__ = ["ProfilePage", "click_first", "goto_page", "is_present"]
+__all__ = [
+    "ProfilePage",
+    "click_first",
+    "goto_page",
+    "is_present",
+    "poll_for",
+    "type_text",
+    "wait_dom",
+]

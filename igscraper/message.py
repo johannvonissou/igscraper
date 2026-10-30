@@ -5,7 +5,6 @@ from contextlib import suppress
 from patchright.async_api import Error as PlaywrightError
 
 from igscraper.constants import (
-    GLOBAL_SLEEP_WRITE,
     MESSAGE_CONTACT_TEXTS,
     MESSAGE_CONTENT_PLACEHOLDERS,
     MESSAGE_GRAPHQL_FRAGMENT,
@@ -24,11 +23,18 @@ from igscraper.constants import (
     MESSAGE_SEND_POLL_MAX,
     MESSAGE_SLEEP_POLL,
     MESSAGE_SLEEP_SEND_POLL,
-    MESSAGE_SLEEP_WINDOW,
     MESSAGE_TIMESTAMP_MICROSECONDS,
     MESSAGE_TIMESTAMP_MILLISECONDS,
     MESSAGE_TO_CHAT_WINDOW,
+    MESSAGE_TO_CLOSE,
     MESSAGE_TO_PAGE,
+    POLL_DELAY_GROWTH,
+    POLL_DELAY_MAX,
+    POLL_DELAY_START,
+    TYPE_PAUSE_CHANCE,
+    TYPE_PAUSE_MS,
+    TYPE_SLEEP_MAX_MS,
+    TYPE_SLEEP_MIN_MS,
     asleep,
     debug,
     error,
@@ -37,7 +43,8 @@ from igscraper.constants import (
     warn,
 )
 from igscraper.errors import guard
-from igscraper.navigation import ProfilePage
+from igscraper.navigation import ProfilePage, poll_for, type_text, wait_dom
+from igscraper.scripts import script
 
 
 class Message(ProfilePage):
@@ -205,13 +212,7 @@ class Message(ProfilePage):
     async def _open_chat(self):
         self._reset()
 
-        buttons = self._page.locator(MESSAGE_SEL_BUTTONS)
-        texts = [text.strip() for text in await buttons.all_inner_texts()]
-
-        index = next(
-            (i for i, text in enumerate(texts) if text in MESSAGE_CONTACT_TEXTS),
-            None,
-        )
+        texts, index = await self._contact()
 
         if index is None:
             error(f"Bouton de contact introuvable ({', '.join(MESSAGE_CONTACT_TEXTS)}).")
@@ -220,16 +221,27 @@ class Message(ProfilePage):
 
         info(f"Clic sur le bouton « {texts[index]} ».")
 
-        await buttons.nth(index).click()
+        await self._page.locator(MESSAGE_SEL_BUTTONS).nth(index).click()
 
-        composer = await self._composer()
+        return await self._composer()
 
-        if composer is None:
-            return None
+    async def _contact(self):
+        deadline = time.monotonic() + MESSAGE_TO_CHAT_WINDOW / 1000
+        delay = POLL_DELAY_START
 
-        await asleep(MESSAGE_SLEEP_WINDOW)
+        while True:
+            texts = await self._page.evaluate(script("button_texts"), MESSAGE_SEL_BUTTONS)
+            index = next((i for i, text in enumerate(texts) if text in MESSAGE_CONTACT_TEXTS), None)
 
-        return composer
+            if index is not None:
+                return texts, index
+
+            if time.monotonic() >= deadline:
+                return texts, None
+
+            await asleep(delay)
+
+            delay = min(delay * POLL_DELAY_GROWTH, POLL_DELAY_MAX)
 
     async def _composer(self):
         selector = ", ".join(MESSAGE_SEL_COMPOSER_CANDIDATES)
@@ -246,13 +258,30 @@ class Message(ProfilePage):
 
     async def _send(self, composer, message):
         await composer.click()
-        await composer.press_sequentially(message, delay=GLOBAL_SLEEP_WRITE)
+        await type_text(
+            composer,
+            message,
+            min_ms=TYPE_SLEEP_MIN_MS,
+            max_ms=TYPE_SLEEP_MAX_MS,
+            pause_ms=TYPE_PAUSE_MS,
+            pause_chance=TYPE_PAUSE_CHANCE,
+        )
         await composer.press("Enter")
 
-        return await self._wait_sent(composer, message)
+        return await self._wait_sent(message)
 
     async def _close_chat(self):
-        close = self._page.locator(", ".join(MESSAGE_SEL_CLOSE_CANDIDATES)).first
+        composer = self._page.locator(", ".join(MESSAGE_SEL_COMPOSER_CANDIDATES)).first
+
+        try:
+            await self._page.keyboard.press("Escape")
+            await composer.wait_for(state="hidden", timeout=MESSAGE_TO_CLOSE)
+        except PlaywrightError:
+            pass
+        else:
+            return
+
+        close = self._page.locator(", ".join(MESSAGE_SEL_CLOSE_CANDIDATES)).last
 
         if not await close.count():
             debug("Bouton de fermeture de la conversation introuvable.")
@@ -264,7 +293,8 @@ class Message(ProfilePage):
         except PlaywrightError:
             return
 
-        await asleep(MESSAGE_SLEEP_WINDOW)
+        with suppress(PlaywrightError):
+            await composer.wait_for(state="hidden", timeout=MESSAGE_TO_CLOSE)
 
     async def _capture(self, response):
         url = response.url
@@ -411,15 +441,7 @@ class Message(ProfilePage):
         return None
 
     async def _wait_page(self, before):
-        deadline = time.monotonic() + MESSAGE_TO_PAGE / 1000
-
-        while time.monotonic() < deadline:
-            if len(self._payloads) > before:
-                return True
-
-            await asleep(MESSAGE_SLEEP_POLL)
-
-        return False
+        return await poll_for(lambda: len(self._payloads) > before, timeout_s=MESSAGE_TO_PAGE / 1000)
 
     async def _collect_history(self, target):
         if not self._payloads:
@@ -475,14 +497,20 @@ class Message(ProfilePage):
 
         return sorted(messages, key=lambda m: m["timestamp"])
 
-    async def _wait_sent(self, composer, message):
-        for _ in range(MESSAGE_SEND_POLL_MAX):
-            await asleep(MESSAGE_SLEEP_SEND_POLL)
+    async def _wait_sent(self, message):
+        sent = await wait_dom(
+            self._page,
+            "sent_state",
+            {
+                "articleSelector": MESSAGE_SEL_ARTICLE,
+                "composerSelector": ", ".join(MESSAGE_SEL_COMPOSER_CANDIDATES),
+                "message": message,
+            },
+            timeout_ms=MESSAGE_SEND_POLL_MAX * MESSAGE_SLEEP_SEND_POLL * 1000,
+        )
 
-            echoed = self._page.locator(MESSAGE_SEL_ARTICLE).filter(has_text=message)
-
-            if await echoed.count() and not (await composer.inner_text()).strip():
-                return True
+        if sent:
+            return True
 
         error(f"L'envoi du message n'a pas été confirmé : {message[:40]}.")
 
