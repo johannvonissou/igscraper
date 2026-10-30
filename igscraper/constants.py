@@ -310,7 +310,7 @@ SEARCH_TO_SWITCH = 5
 SEARCH_STABLE_DELAY = 0.8
 
 ACCOUNT_SEL_HEADER = "main header"
-ACCOUNT_SEL_USERNAME = "main header h2"
+ACCOUNT_SEL_USERNAME = "main header h2, main header h1"
 ACCOUNT_SEL_ADDRESS = "main header h1"
 ACCOUNT_SEL_SECTION = "main header section"
 ACCOUNT_SEL_BIO = 'main header div[role="button"]:has(span[dir="auto"]):not(:has(svg))'
@@ -366,7 +366,6 @@ PROFILE_READY_MARKERS = (
     ACCOUNT_PRIVATE_TEXT,
 )
 
-PROFILE_STATE_FOUND = "profile"
 PROFILE_STATE_NOT_FOUND = "not_found"
 PROFILE_NOT_FOUND_MARKERS = (
     "cette page n'est malheureusement pas disponible",

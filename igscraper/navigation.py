@@ -164,16 +164,14 @@ class ProfilePage:
 
         info(f"Page de profil ouverte : {url}.")
 
-        if not await self.wait_profile(username):
-            return None
-
-        return await self.current_username()
+        return await self.wait_profile(username)
 
     async def wait_profile(self, username):
         try:
             handle = await self._page.wait_for_function(
                 script("profile_state"),
                 arg={
+                    "username": username,
                     "headerSelector": ACCOUNT_SEL_HEADER,
                     "usernameSelector": ACCOUNT_SEL_USERNAME,
                     "notFoundMarkers": list(PROFILE_NOT_FOUND_MARKERS),
@@ -183,14 +181,16 @@ class ProfilePage:
         except PlaywrightTimeoutError:
             error(f"Profil '{ACCOUNT_SEL_USERNAME}' introuvable : page inattendue ou sélecteur à revoir.")
 
-            return False
+            return None
 
-        if await handle.json_value() == PROFILE_STATE_NOT_FOUND:
+        result = await handle.json_value()
+
+        if result["state"] == PROFILE_STATE_NOT_FOUND:
             raise AccountNotFoundError(username)
 
         await self.wait_profile_ready()
 
-        return True
+        return result["username"]
 
     async def wait_profile_ready(self):
         ready = await wait_dom(
@@ -203,9 +203,6 @@ class ProfilePage:
         debug("Profil prêt." if ready else "Profil toujours en cours de chargement (continuation).")
 
         return ready
-
-    async def current_username(self):
-        return (await self._page.locator(ACCOUNT_SEL_USERNAME).first.inner_text()).strip()
 
     @property
     def page(self):

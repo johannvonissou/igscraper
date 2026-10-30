@@ -1,4 +1,5 @@
 ({
+  username,
   usernameSelector,
   sectionSelector,
   followerSelector,
@@ -14,7 +15,9 @@
   postHrefPattern,
   buttonSelector,
 }) => {
-  const title = document.querySelector(usernameSelector);
+  const titles = Array.from(document.querySelectorAll(usernameSelector));
+  const title =
+    titles.find((element) => (element.innerText || "").trim().toLowerCase() === username.toLowerCase()) || titles[0];
   const section = title?.closest("section") || document.querySelector(sectionSelector);
   const main = document.querySelector("main");
   const sectionText = section ? section.innerText || "" : "";
@@ -64,7 +67,10 @@
     sectionText,
     followersTitle: document.querySelector(followerSelector)?.getAttribute("title") ?? null,
     bio: document.querySelector(bioSelector)?.innerText?.trim() || "",
-    address: document.querySelector(addressSelector)?.innerText?.trim() || null,
+    address:
+      Array.from(document.querySelectorAll(addressSelector))
+        .find((element) => element !== title)
+        ?.innerText?.trim() || null,
     bioLink,
     appearsPrivate: sectionText.includes(privateText) || mainText.includes(privateText),
     buttonTexts: Array.from(document.querySelectorAll(buttonSelector)).map((element) =>
