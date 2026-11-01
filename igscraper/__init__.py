@@ -4,6 +4,7 @@ from igscraper.client import Instagram
 from igscraper.constants import VERSION, configure_logging
 from igscraper.errors import (
     AccountNotFoundError,
+    AccountRestrictedError,
     BrowserError,
     ChallengeRequiredError,
     IGScraperError,
@@ -21,6 +22,7 @@ __version__ = VERSION
 __all__ = [
     "Account",
     "AccountNotFoundError",
+    "AccountRestrictedError",
     "BrowserError",
     "BrowserOptions",
     "ChallengeRequiredError",

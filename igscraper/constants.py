@@ -367,6 +367,11 @@ PROFILE_READY_MARKERS = (
 )
 
 PROFILE_STATE_NOT_FOUND = "not_found"
+PROFILE_STATE_RESTRICTED = "restricted"
+PROFILE_RESTRICTED_MARKERS = (
+    "profil restreint",
+    "restricted profile",
+)
 PROFILE_NOT_FOUND_MARKERS = (
     "cette page n'est malheureusement pas disponible",
     "this page isn't available",

@@ -2,7 +2,7 @@ import re
 import time
 from inspect import isawaitable
 from random import random, uniform
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlparse
 
 from patchright.async_api import Error as PlaywrightError
 from patchright.async_api import TimeoutError as PlaywrightTimeoutError
@@ -23,14 +23,16 @@ from igscraper.constants import (
     POLL_DELAY_START,
     PROFILE_NOT_FOUND_MARKERS,
     PROFILE_READY_MARKERS,
+    PROFILE_RESTRICTED_MARKERS,
     PROFILE_STATE_NOT_FOUND,
+    PROFILE_STATE_RESTRICTED,
     TYPE_PAUSE_CHARS,
     asleep,
     debug,
     error,
     info,
 )
-from igscraper.errors import AccountNotFoundError
+from igscraper.errors import AccountNotFoundError, AccountRestrictedError
 from igscraper.scripts import script
 
 
@@ -175,6 +177,7 @@ class ProfilePage:
                     "headerSelector": ACCOUNT_SEL_HEADER,
                     "usernameSelector": ACCOUNT_SEL_USERNAME,
                     "notFoundMarkers": list(PROFILE_NOT_FOUND_MARKERS),
+                    "restrictedMarkers": list(PROFILE_RESTRICTED_MARKERS),
                 },
                 timeout=ACCOUNT_TO_PROFILE,
             )
@@ -187,6 +190,9 @@ class ProfilePage:
 
         if result["state"] == PROFILE_STATE_NOT_FOUND:
             raise AccountNotFoundError(username)
+
+        if result["state"] == PROFILE_STATE_RESTRICTED:
+            raise AccountRestrictedError(username)
 
         await self.wait_profile_ready()
 
@@ -214,7 +220,12 @@ class ProfilePage:
 
     @staticmethod
     def normalize_username(username):
-        return (username or "").strip().lstrip("@").strip("/")
+        value = (username or "").strip().lstrip("@")
+
+        if "://" in value or value.lower().startswith(("www.", "instagram.com")):
+            value = urlparse(value if "://" in value else f"//{value}").path
+
+        return value.strip("/").split("/")[0]
 
 
 __all__ = [

@@ -1,4 +1,4 @@
-({ username, headerSelector, usernameSelector, notFoundMarkers }) => {
+({ username, headerSelector, usernameSelector, notFoundMarkers, restrictedMarkers }) => {
   const wanted = username.toLowerCase();
   const titles = Array.from(document.querySelectorAll(usernameSelector)).filter(
     (element) => element.getClientRects().length > 0,
@@ -17,5 +17,9 @@
 
   const text = (main.innerText || "").replace(/[\u2018\u2019]/g, "'").toLowerCase();
 
-  return notFoundMarkers.some((marker) => text.includes(marker)) ? { state: "not_found" } : null;
+  if (notFoundMarkers.some((marker) => text.includes(marker))) {
+    return { state: "not_found" };
+  }
+
+  return restrictedMarkers.some((marker) => text.includes(marker)) ? { state: "restricted" } : null;
 }

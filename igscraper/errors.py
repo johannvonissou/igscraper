@@ -36,6 +36,13 @@ class AccountNotFoundError(ScrapeError):
         super().__init__(f"Le compte @{username} est introuvable : inexistant, supprimé ou vous ayant bloqué.")
 
 
+class AccountRestrictedError(ScrapeError):
+    def __init__(self, username):
+        self.username = username
+
+        super().__init__(f"Le profil @{username} est restreint (restriction d'âge) : consultation impossible.")
+
+
 def summarize(exc):
     message = (str(exc) or "").strip()
     first = message.split("\n", 1)[0] if message else ""
