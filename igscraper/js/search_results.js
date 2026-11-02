@@ -1,4 +1,14 @@
-({ scopeSelector, tabSelector, prefix, imgSelector, linkSelector, separator, followerSuffixes }) => {
+({
+  scopeSelector,
+  tabSelector,
+  prefix,
+  imgSelector,
+  linkSelector,
+  separator,
+  followerSuffixes,
+  emptyMarkers,
+  busySelector,
+}) => {
   const scope = document.querySelector(scopeSelector);
   const tablist = scope?.querySelector(tabSelector)?.closest('[role="tablist"]');
 
@@ -66,5 +76,18 @@
     seen.add(username);
   }
 
-  return accounts;
+  const walker = document.createTreeWalker(scope, NodeFilter.SHOW_TEXT);
+  let empty = false;
+
+  for (let node = walker.nextNode(); node && !empty; node = walker.nextNode()) {
+    const text = node.textContent.trim().replace(/[.\s]+$/, "").toLowerCase();
+
+    empty = after(node) && emptyMarkers.includes(text);
+  }
+
+  return {
+    accounts,
+    empty: empty && accounts.length === 0,
+    busy: Boolean(scope.querySelector(busySelector)),
+  };
 }

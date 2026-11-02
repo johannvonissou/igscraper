@@ -648,6 +648,7 @@ async with stealth_browser() as context:
 - Les attentes utilisent des scrutins avec backoff exponentiel plutôt que des délais fixes.
 - La saisie de texte imite une frappe humaine (délais aléatoires et pauses) ; `human=False` à l'envoi d'un message la supprime. Un message multiligne passe par Maj+Entrée.
 - `Search` réutilise la page `/explore/` déjà ouverte (le champ est vidé, puis on attend la disparition des résultats précédents) ; sinon elle la charge.
+- `Search` n'attend pas de délai maximal quand il n'y a rien à attendre : le message « Aucun résultat. » (ou `No results found.`) est détecté dès son affichage, l'indicateur de chargement (`role="progressbar"`) retarde la lecture, et une liste inchangée entre « Pour vous » et « Non personnalisé » est acceptée après une courte stabilisation. Une recherche sans résultat prend ainsi ~2 s au lieu de ~15 s.
 - La pagination des messages est bornée pour éviter les boucles infinies.
 - Les erreurs Playwright et système sont interceptées puis transformées en erreurs métier.
 

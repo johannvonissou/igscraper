@@ -6,16 +6,18 @@ from patchright.async_api import Error as PlaywrightError
 from patchright.async_api import TimeoutError as PlaywrightTimeoutError
 
 from igscraper.constants import (
-    POLL_DELAY_GROWTH,
-    POLL_DELAY_MAX,
-    POLL_DELAY_START,
     SEARCH_DETAIL_SEPARATOR,
+    SEARCH_EMPTY_DELAY,
+    SEARCH_EMPTY_MARKERS,
+    SEARCH_EMPTY_UNMARKED_DELAY,
     SEARCH_FOLLOWERS_SUFFIXES,
     SEARCH_NONPERSONALIZED_PATTERN,
     SEARCH_NONPERSONALIZED_TEXT,
     SEARCH_PAGE,
     SEARCH_PERSONALIZED_TEXT,
+    SEARCH_POLL_DELAY,
     SEARCH_RESULTS_IMG_TEXT,
+    SEARCH_SEL_BUSY,
     SEARCH_SEL_INPUT_CANDIDATES,
     SEARCH_SEL_RESULTS_IMG,
     SEARCH_SEL_RESULTS_LINK,
@@ -27,6 +29,7 @@ from igscraper.constants import (
     SEARCH_TO_REUSE,
     SEARCH_TO_SWITCH,
     SEARCH_TO_TAB,
+    SEARCH_UNCHANGED_DELAY,
     TYPE_PAUSE_CHANCE,
     TYPE_PAUSE_MS,
     TYPE_SLEEP_MAX_MS,
@@ -186,6 +189,8 @@ class Search:
 
         info(f"Onglet « {SEARCH_PERSONALIZED_TEXT} » : {len(personalized)} compte(s).")
 
+        before = self._snapshot(await self._collect())
+
         try:
             await tab.first.click(timeout=SEARCH_TO_TAB)
         except PlaywrightError:
@@ -193,8 +198,7 @@ class Search:
 
             return personalized
 
-        previous = tuple(account["username"] for account in personalized)
-        nonpersonalized = await self._stable_results(previous) or []
+        nonpersonalized = await self._stable_results(before) or []
 
         info(f"Onglet « {SEARCH_NONPERSONALIZED_TEXT} » : {len(nonpersonalized)} compte(s).")
 
@@ -214,38 +218,53 @@ class Search:
 
         return list(merged.values())
 
-    async def _signature(self):
-        accounts = await self._collect()
+    @staticmethod
+    def _snapshot(state):
+        if state is None:
+            return None
 
-        return None if accounts is None else tuple(account["username"] for account in accounts)
+        return tuple(account["username"] for account in state["accounts"]), state["empty"]
 
     async def _stable_results(self, previous):
         deadline = time.monotonic() + SEARCH_TO_SWITCH
-        delay = POLL_DELAY_START
-        accounts = await self._collect()
         signature = None
         stable_since = None
+        refreshed = previous is None
 
         while True:
-            current = None if accounts is None else tuple(account["username"] for account in accounts)
-            changed = previous is None or current != previous
+            state = await self._collect()
+            accounts = None if state is None else state["accounts"]
+            current = tuple(account["username"] for account in accounts or ())
+            busy = state is not None and state["busy"]
+            now = time.monotonic()
 
-            if current and changed:
-                if current != signature:
-                    signature = current
-                    stable_since = time.monotonic()
-                elif time.monotonic() - stable_since >= SEARCH_STABLE_DELAY:
-                    return self._normalize(accounts)
+            if state is not None and not refreshed:
+                refreshed = busy or self._snapshot(state) != previous
 
-            if time.monotonic() >= deadline:
+            if state is None or busy:
+                signature = None
+            elif current != signature:
+                signature = current
+                stable_since = now
+            elif now - stable_since >= self._settle_delay(state, refreshed=refreshed):
+                return self._normalize(accounts)
+
+            if now >= deadline:
                 debug("Résultats non stabilisés dans le délai imparti.")
 
                 return self._normalize(accounts)
 
-            await asleep(delay)
+            await asleep(SEARCH_POLL_DELAY)
 
-            delay = min(delay * POLL_DELAY_GROWTH, POLL_DELAY_MAX)
-            accounts = await self._collect()
+    @staticmethod
+    def _settle_delay(state, *, refreshed):
+        if not refreshed:
+            return SEARCH_UNCHANGED_DELAY
+
+        if state["accounts"]:
+            return SEARCH_STABLE_DELAY
+
+        return SEARCH_EMPTY_DELAY if state["empty"] else SEARCH_EMPTY_UNMARKED_DELAY
 
     async def _collect(self):
         return await self._page.evaluate(
@@ -258,6 +277,8 @@ class Search:
                 "linkSelector": SEARCH_SEL_RESULTS_LINK,
                 "separator": SEARCH_DETAIL_SEPARATOR,
                 "followerSuffixes": list(SEARCH_FOLLOWERS_SUFFIXES),
+                "emptyMarkers": list(SEARCH_EMPTY_MARKERS),
+                "busySelector": SEARCH_SEL_BUSY,
             },
         )
 
