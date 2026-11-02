@@ -57,8 +57,8 @@ from igscraper.scripts import script
 
 
 class Account(ProfilePage):
-    def __init__(self, page):
-        super().__init__(page)
+    def __init__(self, page, *, reuse_page=False):
+        super().__init__(page, reuse_page=reuse_page)
 
         self._buttons = None
 

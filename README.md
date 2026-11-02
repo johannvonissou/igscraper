@@ -497,7 +497,7 @@ finally:
 | Option | Défaut | Description |
 | --- | --- | --- |
 | `headless` | `True` | Lance le navigateur sans fenêtre. |
-| `block_media` | `True` | Bloque images et vidéos pour accélérer les pages. |
+| `block_media` | `True` | Ne charge pas les images (réglage Chrome `imagesEnabled=false`) ; le cache HTTP de Chrome reste actif. |
 | `locale` | `"fr-FR"` | Locale du navigateur. |
 | `timezone_id` | `"Europe/Paris"` | Fuseau horaire. |
 | `user_agent` | `None` | User-agent personnalisé. Sinon, un UA cohérent est calculé en headless. |
@@ -506,6 +506,8 @@ finally:
 | `extra_args` | `None` | Arguments Chrome supplémentaires. |
 
 Toute option inconnue lève immédiatement `TypeError`.
+
+`Instagram(options, manual_resolution=None, reuse_page=False)` : avec `reuse_page=True`, `account` / `follow` / `messages` / `send_message` ne rechargent pas la page quand elle affiche déjà le profil demandé (une lecture de profil suivie d'une conversation ne charge la page qu'une fois). La recherche réutilise toujours `/explore/` quand elle est déjà ouverte.
 
 ### Méthodes principales
 
@@ -520,7 +522,19 @@ Toute option inconnue lève immédiatement `TypeError`.
 | `await client.account(username)` | Récupère un profil. |
 | `await client.follow(username)` | S'abonne à un compte. |
 | `await client.messages(username)` | Lit une conversation. |
-| `await client.send_message(username, message, history=False)` | Envoie un message, avec historique optionnel. |
+| `await client.send_message(username, message, history=False, human=True)` | Envoie un message, avec historique optionnel. `human=False` tape chaque ligne d'un trait, sans délais. |
+| `async with client.conversation(username) as chat` | Ouvre la conversation une seule fois : `await chat.messages()` (liste, `[]` sans message) puis `await chat.send(message, human=True)`. Lève `ScrapeError` si la conversation est inaccessible. |
+
+Lire, décider, envoyer dans la même conversation (une seule ouverture de la page et de la fenêtre de messagerie) :
+
+```python
+async with client.conversation("username") as chat:
+    history = await chat.messages()
+    text = "Relance" if history else "Premier contact"
+
+    if not await chat.send(text):
+        ...  # envoi non confirmé
+```
 
 Alias disponibles :
 
@@ -606,8 +620,8 @@ async with stealth_browser() as context:
     page = await first_page(context)
     login = Login(page)
     search = Search(page)
-    account = Account(page)
-    message = Message(page)
+    account = Account(page, reuse_page=True)
+    message = Message(page, reuse_page=True)
     ...
 ```
 
@@ -621,7 +635,7 @@ async with stealth_browser() as context:
 - Un user-agent Chrome cohérent est généré automatiquement en mode headless.
 - La locale, le fuseau horaire et la taille de fenêtre sont contrôlés.
 - Le profil persistant conserve les cookies entre les exécutions.
-- Les médias peuvent être bloqués ou remplacés par une image minimale.
+- Les images ne sont pas chargées (réglage de Chrome, sans interception de requêtes).
 
 ### Connexion et challenges
 
@@ -632,13 +646,16 @@ async with stealth_browser() as context:
 ### Navigation et attentes
 
 - Les attentes utilisent des scrutins avec backoff exponentiel plutôt que des délais fixes.
-- La saisie de texte imite une frappe humaine (délais aléatoires et pauses).
+- La saisie de texte imite une frappe humaine (délais aléatoires et pauses) ; `human=False` à l'envoi d'un message la supprime. Un message multiligne passe par Maj+Entrée.
+- `Search` réutilise la page `/explore/` déjà ouverte (le champ est vidé, puis on attend la disparition des résultats précédents) ; sinon elle la charge.
 - La pagination des messages est bornée pour éviter les boucles infinies.
 - Les erreurs Playwright et système sont interceptées puis transformées en erreurs métier.
 
 ### Médias
 
-Par défaut, les ressources `image` et `media` sont bloquées. `--load-media` (CLI) ou `block_media=False` (Python) les autorise, au prix d'un chargement plus lent.
+Par défaut, les images ne sont pas chargées. `--load-media` (CLI) ou `block_media=False` (Python) les autorisent, au prix d'un chargement plus lent.
+
+Le blocage passe par le réglage Blink `--blink-settings=imagesEnabled=false` et non par une interception (`context.route`) : Playwright désactive le cache HTTP de Chrome dès qu'une requête est interceptée, et chaque page retéléchargeait alors ses ~90 scripts (≈ 4 Mo, ≈ 165 requêtes) au lieu de les lire dans le cache (≈ 25 requêtes réseau hors images).
 
 ---
 

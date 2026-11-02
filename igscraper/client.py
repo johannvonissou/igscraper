@@ -1,4 +1,4 @@
-from contextlib import AsyncExitStack
+from contextlib import AsyncExitStack, asynccontextmanager
 
 from igscraper.account import Account
 from igscraper.browser import BrowserOptions, first_page, stealth_browser
@@ -10,8 +10,9 @@ from igscraper.search import Search
 
 
 class Instagram:
-    def __init__(self, options=None, *, manual_resolution=None):
+    def __init__(self, options=None, *, manual_resolution=None, reuse_page=False):
         self._options = options or BrowserOptions()
+        self._reuse_page = reuse_page
         self._manual_resolution = (not self._options.headless) if manual_resolution is None else manual_resolution
 
         self._stack = None
@@ -57,8 +58,8 @@ class Instagram:
 
         self._login = Login(page, manual_resolution=self._manual_resolution)
         self._search = Search(page)
-        self._account = Account(page)
-        self._message = Message(page)
+        self._account = Account(page, reuse_page=self._reuse_page)
+        self._message = Message(page, reuse_page=self._reuse_page)
 
         return self
 
@@ -156,16 +157,23 @@ class Instagram:
 
         return data
 
-    async def send_message(self, username, message, *, history=False):
+    async def send_message(self, username, message, *, history=False, human=True):
         await self.ensure_login()
 
-        data = await self._service(self._message).send_message(username, message, history=history)
+        data = await self._service(self._message).send_message(username, message, history=history, human=human)
 
         if not data:
             msg = f"Envoi du message à @{Account.normalize_username(username)} échoué."
             raise ScrapeError(msg)
 
         return data
+
+    @asynccontextmanager
+    async def conversation(self, username):
+        await self.ensure_login()
+
+        async with self._service(self._message).conversation(username) as chat:
+            yield chat
 
     disconnect = logout
 

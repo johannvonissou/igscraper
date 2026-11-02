@@ -149,8 +149,9 @@ def parse_count(text):
 
 
 class ProfilePage:
-    def __init__(self, page):
+    def __init__(self, page, *, reuse_page=False):
         self._page = page
+        self._reuse_page = reuse_page
 
     async def open_profile(self, username):
         username = self.normalize_username(username)
@@ -162,11 +163,19 @@ class ProfilePage:
 
         url = self.profile_url(username)
 
-        await goto_page(self._page, url)
+        if self._reuse_page and self.on_profile(username):
+            info(f"Page de profil déjà ouverte : {url}.")
+        else:
+            await goto_page(self._page, url)
 
-        info(f"Page de profil ouverte : {url}.")
+            info(f"Page de profil ouverte : {url}.")
 
         return await self.wait_profile(username)
+
+    def on_profile(self, username):
+        wanted = self.normalize_username(username).lower()
+
+        return bool(wanted) and urlparse(self._page.url).path.strip("/").lower() == wanted
 
     async def wait_profile(self, username):
         try:

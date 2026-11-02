@@ -1,12 +1,13 @@
 import json
 import time
-from contextlib import suppress
+from contextlib import asynccontextmanager, suppress
 
 from patchright.async_api import Error as PlaywrightError
 
 from igscraper.constants import (
     MESSAGE_CONTACT_TEXTS,
     MESSAGE_CONTENT_PLACEHOLDERS,
+    MESSAGE_EMPTY_GRACE,
     MESSAGE_GRAPHQL_API,
     MESSAGE_GRAPHQL_FRAGMENT,
     MESSAGE_GRAPHQL_QUERY,
@@ -48,14 +49,14 @@ from igscraper.constants import (
     success,
     warn,
 )
-from igscraper.errors import guard
-from igscraper.navigation import ProfilePage, poll_for, type_text, wait_dom
+from igscraper.errors import ScrapeError, guard, summarize
+from igscraper.navigation import ProfilePage, goto_page, poll_for, type_text, wait_dom
 from igscraper.scripts import script
 
 
 class Message(ProfilePage):
-    def __init__(self, page):
-        super().__init__(page)
+    def __init__(self, page, *, reuse_page=False):
+        super().__init__(page, reuse_page=reuse_page)
 
         self._payloads = []
         self._listener = self._capture
@@ -86,7 +87,7 @@ class Message(ProfilePage):
         return self._as_payload(username, messages)
 
     @guard
-    async def send_message(self, username, message, *, history=False):
+    async def send_message(self, username, message, *, history=False, human=True):
         if not message or not message.strip():
             error("Message vide.")
 
@@ -106,7 +107,7 @@ class Message(ProfilePage):
         messages = None
 
         try:
-            sent = await self._send(composer, message)
+            sent = await self._send(composer, message, human=human)
 
             if sent:
                 success(f"Message envoyé à @{username}.")
@@ -130,6 +131,27 @@ class Message(ProfilePage):
         info(f"Historique récupéré après envoi : {len(messages)} messages.")
 
         return self._as_payload(username, messages, sent=True)
+
+    @asynccontextmanager
+    async def conversation(self, username):
+        try:
+            username = await self.open_profile(username)
+            composer = await self._open_chat() if username else None
+        except (PlaywrightError, OSError) as exc:
+            raise ScrapeError(summarize(exc)) from exc
+
+        if composer is None:
+            msg = "Conversation inaccessible."
+            raise ScrapeError(msg)
+
+        try:
+            yield Conversation(
+                username,
+                lambda: self._read(username),
+                lambda text, human: self._write(composer, text, human),
+            )
+        finally:
+            await self._close_chat()
 
     async def detach(self):
         with suppress(PlaywrightError):
@@ -217,6 +239,7 @@ class Message(ProfilePage):
         self._viewer = None
         self._has_next = False
         self._found = False
+        self._empty = False
 
     async def _open_chat(self):
         self._reset()
@@ -265,24 +288,60 @@ class Message(ProfilePage):
 
         return composer
 
-    async def _send(self, composer, message):
-        before = await self._page.evaluate(script("sent_state"), self._sent_args(message))
+    async def _read(self, username):
+        history = await self._collect_history(username, empty_ok=True)
 
-        await composer.click()
+        if history is None and self._reuse_page:
+            history = await self._read_again(username)
 
+        if history is None:
+            msg = f"Historique de @{username} illisible."
+            raise ScrapeError(msg)
+
+        return self._as_payload(username, history)["messages"]
+
+    async def _read_again(self, username):
+        debug("Conversation déjà chargée par la page : rechargement du profil.")
+
+        await goto_page(self._page, self.profile_url(username))
+
+        if await self.wait_profile(username) is None or await self._open_chat() is None:
+            return None
+
+        return await self._collect_history(username, empty_ok=True)
+
+    async def _write(self, composer, message, human):
+        if not message or not message.strip():
+            msg = "Message vide."
+            raise ScrapeError(msg)
+
+        try:
+            return await self._send(composer, message, human=human)
+        except (PlaywrightError, OSError) as exc:
+            raise ScrapeError(summarize(exc)) from exc
+
+    async def _type(self, composer, message, *, human=True):
         for index, line in enumerate(message.split("\n")):
             if index:
                 await composer.press("Shift+Enter")
 
-            await type_text(
-                composer,
-                line,
-                min_ms=TYPE_SLEEP_MIN_MS,
-                max_ms=TYPE_SLEEP_MAX_MS,
-                pause_ms=TYPE_PAUSE_MS,
-                pause_chance=TYPE_PAUSE_CHANCE,
-            )
+            if human:
+                await type_text(
+                    composer,
+                    line,
+                    min_ms=TYPE_SLEEP_MIN_MS,
+                    max_ms=TYPE_SLEEP_MAX_MS,
+                    pause_ms=TYPE_PAUSE_MS,
+                    pause_chance=TYPE_PAUSE_CHANCE,
+                )
+            else:
+                await composer.press_sequentially(line)
 
+    async def _send(self, composer, message, *, human=True):
+        before = await self._page.evaluate(script("sent_state"), self._sent_args(message))
+
+        await composer.click()
+        await self._type(composer, message, human=human)
         await composer.press("Enter")
 
         return await self._wait_sent(message, before)
@@ -338,12 +397,26 @@ class Message(ProfilePage):
             return
 
         if MESSAGE_GRAPHQL_FRAGMENT not in body:
+            self._note_empty(body)
+
             return
 
         try:
             self._payloads.append(json.loads(body))
         except ValueError:
             return
+
+    def _note_empty(self, body):
+        if not any(key in body for key in MESSAGE_PAYLOAD_KEYS):
+            return
+
+        try:
+            data = json.loads(body).get("data")
+        except (ValueError, AttributeError):
+            return
+
+        if isinstance(data, dict) and any(key in data and data[key] is None for key in MESSAGE_PAYLOAD_KEYS):
+            self._empty = True
 
     def _ingest(self, target):
         for payload in self._payloads[self._processed :]:
@@ -473,13 +546,35 @@ class Message(ProfilePage):
     async def _wait_page(self, before):
         return await poll_for(lambda: len(self._payloads) > before, timeout_s=MESSAGE_TO_PAGE / 1000)
 
-    async def _collect_history(self, target):
+    async def _wait_thread(self, *, empty_ok):
+        deadline = time.monotonic() + MESSAGE_TO_PAGE / 1000
+        empty_since = None
+
+        while time.monotonic() < deadline:
+            if self._payloads:
+                return
+
+            if empty_ok and self._empty:
+                empty_since = empty_since or time.monotonic()
+
+                if time.monotonic() - empty_since >= MESSAGE_EMPTY_GRACE:
+                    return
+
+            await asleep(POLL_DELAY_MAX)
+
+    async def _collect_history(self, target, *, empty_ok=False):
         if not self._payloads:
-            await self._wait_page(0)
+            if empty_ok:
+                await self._wait_thread(empty_ok=True)
+            else:
+                await self._wait_page(0)
 
         messages = self._ingest(target)
 
         if not self._found:
+            if empty_ok and self._empty:
+                return []
+
             error("Aucune donnée de conversation reçue : sélecteur ou compte à revoir.")
 
             return None
@@ -543,4 +638,18 @@ class Message(ProfilePage):
         return False
 
 
-__all__ = ["Message"]
+class Conversation:
+    def __init__(self, username, read, write):
+        self.username = username
+
+        self._read = read
+        self._write = write
+
+    async def messages(self):
+        return await self._read()
+
+    async def send(self, message, *, human=True):
+        return await self._write(message, human)
+
+
+__all__ = ["Conversation", "Message"]

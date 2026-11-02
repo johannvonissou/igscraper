@@ -1,5 +1,6 @@
 import re
 import time
+from urllib.parse import urlparse
 
 from patchright.async_api import Error as PlaywrightError
 from patchright.async_api import TimeoutError as PlaywrightTimeoutError
@@ -21,7 +22,9 @@ from igscraper.constants import (
     SEARCH_SEL_RESULTS_SCOPE,
     SEARCH_SEL_TAB,
     SEARCH_STABLE_DELAY,
+    SEARCH_TO_CLEAR,
     SEARCH_TO_RESULTS,
+    SEARCH_TO_REUSE,
     SEARCH_TO_SWITCH,
     SEARCH_TO_TAB,
     TYPE_PAUSE_CHANCE,
@@ -36,13 +39,14 @@ from igscraper.constants import (
     warn,
 )
 from igscraper.errors import guard
-from igscraper.navigation import goto_page, parse_count, type_text
+from igscraper.navigation import goto_page, parse_count, poll_for, type_text
 from igscraper.scripts import script
 
 
 class Search:
-    def __init__(self, page):
+    def __init__(self, page, *, reuse_page=True):
         self._page = page
+        self._reuse_page = reuse_page
 
     @guard
     async def search(self, query):
@@ -53,11 +57,7 @@ class Search:
 
             return None
 
-        await goto_page(self._page, SEARCH_PAGE)
-
-        success("Page de recherche ouverte.")
-
-        field = await self._find_input()
+        field = await self._open_search()
 
         if field is None:
             error("Barre de recherche introuvable.")
@@ -125,15 +125,46 @@ class Search:
 
         return text
 
-    async def _find_input(self):
+    async def _open_search(self):
+        if self._reuse_page and self._on_search_page():
+            field = await self._find_input(SEARCH_TO_REUSE)
+
+            if field is not None and await self._clear(field):
+                info("Page de recherche déjà ouverte.")
+
+                return field
+
+            debug("Recherche précédente encore affichée : page rechargée.")
+
+        await goto_page(self._page, SEARCH_PAGE)
+
+        success("Page de recherche ouverte.")
+
+        return await self._find_input(SEARCH_TO_RESULTS)
+
+    def _on_search_page(self):
+        return urlparse(self._page.url).path.rstrip("/") == urlparse(SEARCH_PAGE).path.rstrip("/")
+
+    async def _find_input(self, wait_ms):
         field = self._page.locator(", ".join(SEARCH_SEL_INPUT_CANDIDATES)).first
 
         try:
-            await field.wait_for(state="attached", timeout=SEARCH_TO_RESULTS)
+            await field.wait_for(state="attached", timeout=wait_ms)
         except PlaywrightTimeoutError:
             return None
 
         return field
+
+    async def _clear(self, field):
+        try:
+            await field.fill("", timeout=SEARCH_TO_REUSE)
+        except PlaywrightError:
+            return False
+
+        async def cleared():
+            return await self._collect() is None
+
+        return await poll_for(cleared, timeout_s=SEARCH_TO_CLEAR / 1000)
 
     async def _combined_results(self):
         tab = self._page.locator(SEARCH_SEL_TAB).filter(has_text=re.compile(SEARCH_NONPERSONALIZED_PATTERN))

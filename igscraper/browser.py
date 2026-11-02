@@ -13,14 +13,9 @@ from igscraper.constants import (
     BROWSER_ARGS,
     BROWSER_CHROME_PATH,
     BROWSER_DEFAULTS,
-    BROWSER_FALLBACK_GIF_CONTENT_TYPE,
     BROWSER_GPU_FLAGS,
     BROWSER_GPU_PATH,
-    BROWSER_MEDIA_BLOCKED,
-    BROWSER_MEDIA_GIF,
-    BROWSER_MEDIA_PATTERNS,
-    BROWSER_MEDIA_RESOURCE_TYPE,
-    BROWSER_MEDIA_STATUS,
+    BROWSER_MEDIA_ARGS,
     BROWSER_PLATFORM_LINUX,
     BROWSER_PROFILE_DIR,
     BROWSER_SCREEN_SIZE_FLAG,
@@ -58,26 +53,6 @@ class BrowserOptions:
 
         for name, default in BROWSER_DEFAULTS.items():
             setattr(self, name, values.get(name, default))
-
-
-async def soft_block_media(route):
-    resource_type = route.request.resource_type
-
-    if resource_type not in BROWSER_MEDIA_BLOCKED:
-        await route.fallback()
-
-        return
-
-    if resource_type == BROWSER_MEDIA_RESOURCE_TYPE:
-        await route.abort()
-
-        return
-
-    await route.fulfill(
-        status=BROWSER_MEDIA_STATUS,
-        body=BROWSER_MEDIA_GIF,
-        content_type=BROWSER_FALLBACK_GIF_CONTENT_TYPE,
-    )
 
 
 def resolve_profile_dir(user_data_dir=None):
@@ -145,6 +120,9 @@ def launch_args(config):
         if BROWSER_GPU_PATH.is_dir():
             args.extend(BROWSER_GPU_FLAGS)
 
+    if config.block_media:
+        args.extend(BROWSER_MEDIA_ARGS)
+
     language = accept_language(config.locale)
 
     if language:
@@ -194,10 +172,6 @@ async def stealth_browser(options=None):
             msg = f"Impossible de lancer Chromium ({summarize(exc)}). Installez Chrome ou lancez « make build »."
             raise BrowserError(msg) from exc
 
-        if config.block_media:
-            for pattern in BROWSER_MEDIA_PATTERNS:
-                await context.route(pattern, soft_block_media)
-
         info(f"Navigateur prêt (headless={config.headless}, profil={profile}).")
 
         try:
@@ -220,6 +194,5 @@ __all__ = [
     "BrowserOptions",
     "first_page",
     "resolve_profile_dir",
-    "soft_block_media",
     "stealth_browser",
 ]

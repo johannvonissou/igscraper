@@ -2,7 +2,6 @@ import asyncio
 import logging
 import re
 import sys
-from base64 import b64decode
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -99,19 +98,9 @@ BROWSER_WINDOW_HEIGHT = 1080
 BROWSER_GPU_FLAGS = ("--use-gl=angle", "--use-angle=gl", "--ignore-gpu-blocklist")
 BROWSER_GPU_PATH = Path("/dev/dri")
 
-BROWSER_MEDIA_PATTERNS = (
-    "*://*.cdninstagram.com/**",
-    "*://*.fbcdn.net/**",
-)
-
-BROWSER_MEDIA_BLOCKED = frozenset({"image", "media"})
-BROWSER_MEDIA_RESOURCE_TYPE = "media"
-BROWSER_MEDIA_STATUS = 200
-
-BROWSER_MEDIA_GIF = b64decode("R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7")
-
-BROWSER_FALLBACK_GIF_CONTENT_TYPE = "image/gif"
-BROWSER_FALLBACK_MEDIA_CONTENT_TYPE = "video/mp4"
+# Images non chargees (reglage Blink) plutot qu'interceptees : une interception (`route`) desactive le cache HTTP de
+# Chrome, et chaque page retelechargerait alors ses ~90 scripts (~4 Mo) au lieu de les lire dans le cache.
+BROWSER_MEDIA_ARGS = ("--blink-settings=imagesEnabled=false",)
 
 TYPE_SLEEP_MIN_MS = 5
 TYPE_SLEEP_MAX_MS = 25
@@ -305,6 +294,8 @@ SEARCH_SEL_INPUT_CANDIDATES = (
 )
 
 SEARCH_TO_RESULTS = 8000
+SEARCH_TO_REUSE = 2000
+SEARCH_TO_CLEAR = 2000
 SEARCH_TO_TAB = 8000
 SEARCH_TO_SWITCH = 5
 SEARCH_STABLE_DELAY = 0.8
@@ -436,6 +427,7 @@ MESSAGE_MEDIA_PLACEHOLDER = "<média>"
 MESSAGE_TO_CHAT_WINDOW = 5000
 MESSAGE_TO_PAGE = 8000
 MESSAGE_TO_CLOSE = 3000
+MESSAGE_EMPTY_GRACE = 2
 
 MESSAGE_TIMESTAMP_MICROSECONDS = 1_000_000_000_000_000
 MESSAGE_TIMESTAMP_MILLISECONDS = 100_000_000_000

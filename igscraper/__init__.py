@@ -13,7 +13,7 @@ from igscraper.errors import (
     ScrapeError,
 )
 from igscraper.login import Login, LoginMethod, LoginResult
-from igscraper.message import Message
+from igscraper.message import Conversation, Message
 from igscraper.search import Search
 from igscraper.session import SessionOptions, establish_session, establish_session_result, get_sessionid
 
@@ -26,6 +26,7 @@ __all__ = [
     "BrowserError",
     "BrowserOptions",
     "ChallengeRequiredError",
+    "Conversation",
     "IGScraperError",
     "Instagram",
     "Login",
