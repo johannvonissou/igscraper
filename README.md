@@ -723,6 +723,7 @@ Toutes les exceptions héritent de `IGScraperError` et sont disponibles dans `ig
 | `ScrapeError` | Données Instagram inaccessibles ou action métier échouée. |
 | `AccountNotFoundError` | Compte inexistant, supprimé ou ayant bloqué l'utilisateur connecté (sous-classe de `ScrapeError`, attribut `username`). |
 | `AccountRestrictedError` | Profil restreint par Instagram, par exemple page « Profil restreint : vous devez avoir au moins 25 ans pour voir ce profil » (sous-classe de `ScrapeError`, attribut `username`). |
+| `ContactUnavailableError` | Le profil n'a ni bouton « Contacter » ni bouton « Message » : messagerie indisponible (sous-classe de `ScrapeError`, attribut `username`). |
 
 Comportement :
 
@@ -737,6 +738,7 @@ Comportement :
   ```
 
 - Un profil à restriction d'âge (page « Profil restreint », sans en-tête de profil) est détecté de la même façon et lève `AccountRestrictedError`.
+- Certains comptes (par exemple `@lycee_jacquesbrel_cvl`) n'affichent aucune option de contact : `messages` et `send` lèvent alors `ContactUnavailableError` après le délai d'attente du bouton, au lieu d'un échec générique.
 - Les commandes `account`, `follow`, `messages` et `send` acceptent un nom d'utilisateur (`@nom`, `nom`) ou l'URL complète du profil (`https://www.instagram.com/nom/`).
 - `login()` renvoie un `LoginResult` avec `success=False` et une `reason` en cas d'échec attendu.
 - Les classes de service utilisent un garde-fou qui intercepte les erreurs Playwright/OS, journalise le détail et renvoie `None` ou `False`.

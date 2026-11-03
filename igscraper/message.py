@@ -49,7 +49,7 @@ from igscraper.constants import (
     success,
     warn,
 )
-from igscraper.errors import ScrapeError, guard, summarize
+from igscraper.errors import ContactUnavailableError, ScrapeError, guard, summarize
 from igscraper.navigation import ProfilePage, goto_page, poll_for, type_text, wait_dom
 from igscraper.scripts import script
 
@@ -71,7 +71,7 @@ class Message(ProfilePage):
         if username is None:
             return False
 
-        if await self._open_chat() is None:
+        if await self._open_chat(username) is None:
             return False
 
         try:
@@ -98,7 +98,7 @@ class Message(ProfilePage):
         if username is None:
             return False
 
-        composer = await self._open_chat()
+        composer = await self._open_chat(username)
 
         if composer is None:
             return False
@@ -136,7 +136,7 @@ class Message(ProfilePage):
     async def conversation(self, username):
         try:
             username = await self.open_profile(username)
-            composer = await self._open_chat() if username else None
+            composer = await self._open_chat(username) if username else None
         except (PlaywrightError, OSError) as exc:
             raise ScrapeError(summarize(exc)) from exc
 
@@ -241,15 +241,15 @@ class Message(ProfilePage):
         self._found = False
         self._empty = False
 
-    async def _open_chat(self):
+    async def _open_chat(self, username):
         self._reset()
 
         texts, index = await self._contact()
 
         if index is None:
-            error(f"Bouton de contact introuvable ({', '.join(MESSAGE_CONTACT_TEXTS)}).")
+            debug(f"Boutons du profil : {texts} (attendu : {', '.join(MESSAGE_CONTACT_TEXTS)}).")
 
-            return None
+            raise ContactUnavailableError(username)
 
         info(f"Clic sur le bouton « {texts[index]} ».")
 
@@ -305,7 +305,7 @@ class Message(ProfilePage):
 
         await goto_page(self._page, self.profile_url(username))
 
-        if await self.wait_profile(username) is None or await self._open_chat() is None:
+        if await self.wait_profile(username) is None or await self._open_chat(username) is None:
             return None
 
         return await self._collect_history(username, empty_ok=True)
