@@ -58,6 +58,7 @@ CHROME_STAGING = ".chrome-new"
 CHROME_USER_AGENT = "igscraper"
 CHROME_CONTENT_LENGTH = "Content-Length"
 CHROME_DOWNLOAD_BLOCK = 1 << 20
+CHROME_DOWNLOAD_SCHEMES = ("http", "https")
 CHROME_DOWNLOAD_TIMEOUT = 60
 CHROME_PROGRESS_STEP = 10
 CHROME_VERSION_TIMEOUT = 10
@@ -98,18 +99,14 @@ BROWSER_WINDOW_HEIGHT = 1080
 BROWSER_GPU_FLAGS = ("--use-gl=angle", "--use-angle=gl", "--ignore-gpu-blocklist")
 BROWSER_GPU_PATH = Path("/dev/dri")
 
-# Images non chargees (reglage Blink) plutot qu'interceptees : une interception (`route`) desactive le cache HTTP de
-# Chrome, et chaque page retelechargerait alors ses ~90 scripts (~4 Mo) au lieu de les lire dans le cache.
 BROWSER_MEDIA_ARGS = ("--blink-settings=imagesEnabled=false",)
 
-TYPE_SLEEP_MIN_MS = 5
-TYPE_SLEEP_MAX_MS = 25
+TYPE_SLEEP_MS = (5, 25)
 TYPE_PAUSE_MS = (180, 420)
 TYPE_PAUSE_CHANCE = 0.06
 TYPE_PAUSE_CHARS = " .,!?;:"
 
-LOGIN_TYPE_SLEEP_MIN_MS = 40
-LOGIN_TYPE_SLEEP_MAX_MS = 110
+LOGIN_TYPE_SLEEP_MS = (40, 110)
 LOGIN_TYPE_PAUSE_MS = (260, 620)
 LOGIN_TYPE_PAUSE_CHANCE = 0.05
 

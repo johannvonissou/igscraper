@@ -41,8 +41,7 @@ from igscraper.constants import (
     POLL_DELAY_START,
     TYPE_PAUSE_CHANCE,
     TYPE_PAUSE_MS,
-    TYPE_SLEEP_MAX_MS,
-    TYPE_SLEEP_MIN_MS,
+    TYPE_SLEEP_MS,
     asleep,
     debug,
     error,
@@ -337,8 +336,7 @@ class Message(ProfilePage):
                 await type_text(
                     composer,
                     line,
-                    min_ms=TYPE_SLEEP_MIN_MS,
-                    max_ms=TYPE_SLEEP_MAX_MS,
+                    sleep_ms=TYPE_SLEEP_MS,
                     pause_ms=TYPE_PAUSE_MS,
                     pause_chance=TYPE_PAUSE_CHANCE,
                 )

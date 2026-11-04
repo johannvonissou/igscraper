@@ -1,7 +1,7 @@
 import re
 import time
 from inspect import isawaitable
-from random import random, uniform
+from random import SystemRandom
 from urllib.parse import urljoin, urlparse
 
 from patchright.async_api import Error as PlaywrightError
@@ -34,6 +34,8 @@ from igscraper.constants import (
 )
 from igscraper.errors import AccountNotFoundError, AccountRestrictedError
 from igscraper.scripts import script
+
+_RANDOM = SystemRandom()
 
 
 async def click_first(page, selectors, *, timeout_ms, label):
@@ -102,23 +104,21 @@ async def wait_dom(page, name, arg=None, *, timeout_ms):
     return True
 
 
-async def type_text(  # noqa: PLR0913
+async def type_text(
     locator,
     text,
     *,
-    min_ms,
-    max_ms,
+    sleep_ms,
     pause_ms,
     pause_chance,
-    pause_chars=TYPE_PAUSE_CHARS,
 ):
     for char in text:
         await locator.press_sequentially(char)
 
-        delay = uniform(min_ms, max_ms) / 1000  # noqa: S311
+        delay = _RANDOM.uniform(*sleep_ms) / 1000
 
-        if char in pause_chars and random() < pause_chance:  # noqa: S311
-            delay += uniform(*pause_ms) / 1000  # noqa: S311
+        if char in TYPE_PAUSE_CHARS and _RANDOM.random() < pause_chance:
+            delay += _RANDOM.uniform(*pause_ms) / 1000
 
         await asleep(delay)
 

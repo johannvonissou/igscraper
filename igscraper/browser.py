@@ -11,6 +11,7 @@ from patchright.async_api import async_playwright
 from igscraper.constants import (
     BROWSER_ACCEPT_LANG_FLAG,
     BROWSER_ARGS,
+    BROWSER_CHROME_DIR,
     BROWSER_CHROME_PATH,
     BROWSER_DEFAULTS,
     BROWSER_GPU_FLAGS,
@@ -74,8 +75,9 @@ def _launch_kwargs():
 @cache
 def chrome_major_version():
     try:
-        result = subprocess.run(  # noqa: S603
-            [str(BROWSER_CHROME_PATH), "--version"],
+        result = subprocess.run(
+            ["./chrome", "--version"],
+            cwd=BROWSER_CHROME_DIR,
             capture_output=True,
             check=False,
             text=True,

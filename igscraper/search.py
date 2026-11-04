@@ -32,8 +32,7 @@ from igscraper.constants import (
     SEARCH_UNCHANGED_DELAY,
     TYPE_PAUSE_CHANCE,
     TYPE_PAUSE_MS,
-    TYPE_SLEEP_MAX_MS,
-    TYPE_SLEEP_MIN_MS,
+    TYPE_SLEEP_MS,
     asleep,
     debug,
     error,
@@ -78,8 +77,7 @@ class Search:
         await type_text(
             field,
             query,
-            min_ms=TYPE_SLEEP_MIN_MS,
-            max_ms=TYPE_SLEEP_MAX_MS,
+            sleep_ms=TYPE_SLEEP_MS,
             pause_ms=TYPE_PAUSE_MS,
             pause_chance=TYPE_PAUSE_CHANCE,
         )

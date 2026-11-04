@@ -37,8 +37,7 @@ from igscraper.constants import (
     LOGIN_TO_SAVE_LOGIN,
     LOGIN_TYPE_PAUSE_CHANCE,
     LOGIN_TYPE_PAUSE_MS,
-    LOGIN_TYPE_SLEEP_MAX_MS,
-    LOGIN_TYPE_SLEEP_MIN_MS,
+    LOGIN_TYPE_SLEEP_MS,
     LOGIN_URL_CHALLENGE,
     LOGIN_URL_RECAPTCHA,
     MAIN_PAGE,
@@ -240,8 +239,7 @@ class Login:
         await type_text(
             email,
             username,
-            min_ms=LOGIN_TYPE_SLEEP_MIN_MS,
-            max_ms=LOGIN_TYPE_SLEEP_MAX_MS,
+            sleep_ms=LOGIN_TYPE_SLEEP_MS,
             pause_ms=LOGIN_TYPE_PAUSE_MS,
             pause_chance=LOGIN_TYPE_PAUSE_CHANCE,
         )
@@ -250,8 +248,7 @@ class Login:
         await type_text(
             credential,
             password,
-            min_ms=LOGIN_TYPE_SLEEP_MIN_MS,
-            max_ms=LOGIN_TYPE_SLEEP_MAX_MS,
+            sleep_ms=LOGIN_TYPE_SLEEP_MS,
             pause_ms=LOGIN_TYPE_PAUSE_MS,
             pause_chance=LOGIN_TYPE_PAUSE_CHANCE,
         )

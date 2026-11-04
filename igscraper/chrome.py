@@ -7,7 +7,7 @@ import tempfile
 from pathlib import Path, PurePosixPath
 from urllib.error import URLError
 from urllib.parse import urlparse
-from urllib.request import Request, urlopen
+from urllib.request import build_opener
 
 from igscraper.constants import (
     BROWSER_CHROME_DEB_URL,
@@ -27,6 +27,7 @@ from igscraper.constants import (
     CHROME_DEB_MEMBER,
     CHROME_DEB_NAME,
     CHROME_DOWNLOAD_BLOCK,
+    CHROME_DOWNLOAD_SCHEMES,
     CHROME_DOWNLOAD_TIMEOUT,
     CHROME_MODE_MASK,
     CHROME_PROGRESS_STEP,
@@ -50,10 +51,11 @@ def chrome_installed():
     return BROWSER_CHROME_PATH.is_file()
 
 
-def chrome_version(path=BROWSER_CHROME_PATH):
+def chrome_version():
     try:
-        result = subprocess.run(  # noqa: S603
-            [str(path), "--version"],
+        result = subprocess.run(
+            ["./chrome", "--version"],
+            cwd=BROWSER_CHROME_DIR,
             capture_output=True,
             check=False,
             text=True,
@@ -194,10 +196,15 @@ def _progress(percent, done, total):
 
 
 def _download(url, destination, progress):
-    request = Request(url, headers={"User-Agent": CHROME_USER_AGENT})  # noqa: S310
+    if urlparse(url).scheme not in CHROME_DOWNLOAD_SCHEMES:
+        msg = f"Schéma d'URL non pris en charge pour le téléchargement de Chrome : {url}"
+        raise BrowserError(msg)
+
+    opener = build_opener()
+    opener.addheaders = [("User-Agent", CHROME_USER_AGENT)]
 
     try:
-        with urlopen(request, timeout=CHROME_DOWNLOAD_TIMEOUT) as response, destination.open("wb") as handle:  # noqa: S310
+        with opener.open(url, timeout=CHROME_DOWNLOAD_TIMEOUT) as response, destination.open("wb") as handle:
             total = int(response.headers.get(CHROME_CONTENT_LENGTH) or 0)
             done = 0
             next_mark = CHROME_PROGRESS_STEP
