@@ -59,7 +59,7 @@ class Instagram:
         self._login = Login(page, manual_resolution=self._manual_resolution)
         self._search = Search(page)
         self._account = Account(page, reuse_page=self._reuse_page)
-        self._message = Message(page, reuse_page=self._reuse_page)
+        self._message = Message(page, reuse_page=self._reuse_page, account=self._account)
 
         return self
 
@@ -146,10 +146,10 @@ class Instagram:
 
         return True
 
-    async def messages(self, username):
+    async def messages(self, username, *, account=False):
         await self.ensure_login()
 
-        data = await self._service(self._message).get_messages(username)
+        data = await self._service(self._message).get_messages(username, account=account)
 
         if not data:
             msg = f"Conversation avec @{Account.normalize_username(username)} inaccessible."
@@ -157,10 +157,16 @@ class Instagram:
 
         return data
 
-    async def send_message(self, username, message, *, history=False, human=True):
+    async def send_message(self, username, message, *, history=False, human=True, account=False):
         await self.ensure_login()
 
-        data = await self._service(self._message).send_message(username, message, history=history, human=human)
+        data = await self._service(self._message).send_message(
+            username,
+            message,
+            history=history,
+            human=human,
+            account=account,
+        )
 
         if not data:
             msg = f"Envoi du message à @{Account.normalize_username(username)} échoué."

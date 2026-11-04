@@ -120,6 +120,11 @@ class Account(ProfilePage):
         if username is None:
             return None
 
+        return await self.read_open_profile(username)
+
+    async def read_open_profile(self, username):
+        self._buttons = None
+
         await self._follow_texts()
 
         return await self._collect(username)

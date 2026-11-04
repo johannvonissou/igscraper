@@ -272,6 +272,8 @@ igscraper messages "instagram" --sessionid "VOTRE_SESSIONID" --last 10
 
 `--last N` limite uniquement l'affichage aux N derniers messages (`--last 0` affiche tout). La récupération de l'historique reste paginée automatiquement.
 
+`--account` joint la fiche du compte (même contenu que `account`) à la réponse, lue sur la page de profil déjà ouverte pour la conversation (pas de second chargement).
+
 ### `send` : envoyer un message
 
 ```bash
@@ -283,6 +285,7 @@ igscraper send "instagram" "Bonjour !" --sessionid "VOTRE_SESSIONID" --history -
 | Option | Description |
 | --- | --- |
 | `--history` | Relit l'historique après l'envoi. |
+| `--account` | Joint la fiche du compte (lue avant l'envoi, sur la même page de profil). |
 | `--last N` | Avec `--history`, n'affiche que les N derniers messages (défaut : 10, `0` = tous). |
 
 L'envoi est confirmé en vérifiant qu'une nouvelle occurrence du message apparaît dans la conversation. Les retours à la ligne (`\n`) sont conservés dans un seul message.
@@ -305,8 +308,8 @@ logout                                  effacer les cookies de session
 search <texte>                          rechercher des comptes
 account <compte>                        lire un profil
 follow <compte>                         s'abonner à un compte
-messages <compte> [--last N]            lire une conversation (défaut : 10, 0 = tout)
-send <compte> <texte> [--history] [--last N]
+messages <compte> [--account] [--last N] lire une conversation (défaut : 10, 0 = tout)
+send <compte> <texte> [--history] [--account] [--last N]
                                         envoyer un message privé
 status                                  état du navigateur et de la session
 headless [on|off]                       relancer le navigateur en mode headless ou visible
@@ -408,6 +411,8 @@ Les médias sont remplacés par des marqueurs lisibles : `<photo>`, `<vidéo>`, 
 ```
 
 Avec `--history`, `messages` contient l'historique relu après l'envoi.
+
+Avec `--account`, `messages` et `send` contiennent aussi une clé `account` (après `username`) au même format que la commande `account`.
 
 ### `follow`
 
@@ -521,8 +526,8 @@ Toute option inconnue lève immédiatement `TypeError`.
 | `await client.search(query)` | Recherche des comptes. |
 | `await client.account(username)` | Récupère un profil. |
 | `await client.follow(username)` | S'abonne à un compte. |
-| `await client.messages(username)` | Lit une conversation. |
-| `await client.send_message(username, message, history=False, human=True)` | Envoie un message, avec historique optionnel. `human=False` tape chaque ligne d'un trait, sans délais. |
+| `await client.messages(username, account=False)` | Lit une conversation. `account=True` ajoute la clé `account` (fiche du profil). |
+| `await client.send_message(username, message, history=False, human=True, account=False)` | Envoie un message, avec historique optionnel. `human=False` tape chaque ligne d'un trait, sans délais. `account=True` ajoute la clé `account` (fiche du profil). |
 | `async with client.conversation(username) as chat` | Ouvre la conversation une seule fois : `await chat.messages()` (liste, `[]` sans message) puis `await chat.send(message, human=True)`. Lève `ScrapeError` si la conversation est inaccessible. |
 
 Lire, décider, envoyer dans la même conversation (une seule ouverture de la page et de la fenêtre de messagerie) :

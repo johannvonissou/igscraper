@@ -362,8 +362,17 @@ def _conversation(username, messages, last):
     return lines
 
 
+def _with_account(data, lines):
+    if not data.get("account"):
+        return lines
+
+    return [_render_account(data["account"]), "", *lines]
+
+
 def _render_messages(data, last=None):
-    return "\n".join(_conversation(_value(data.get("username")), data.get("messages") or [], last))
+    lines = _conversation(_value(data.get("username")), data.get("messages") or [], last)
+
+    return "\n".join(_with_account(data, lines))
 
 
 def _render_send(data, last=None):
@@ -375,7 +384,7 @@ def _render_send(data, last=None):
     if messages:
         lines.extend(["", *_conversation(username, messages, RENDER_SEND_DEFAULT_LAST if last is None else last)])
 
-    return "\n".join(lines)
+    return "\n".join(_with_account(data, lines))
 
 
 def render(command, data, last=None):

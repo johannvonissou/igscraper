@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager, suppress
 
 from patchright.async_api import Error as PlaywrightError
 
+from igscraper.account import Account
 from igscraper.constants import (
     MESSAGE_CONTACT_TEXTS,
     MESSAGE_CONTENT_PLACEHOLDERS,
@@ -55,9 +56,10 @@ from igscraper.scripts import script
 
 
 class Message(ProfilePage):
-    def __init__(self, page, *, reuse_page=False):
+    def __init__(self, page, *, reuse_page=False, account=None):
         super().__init__(page, reuse_page=reuse_page)
 
+        self._account = account or Account(page, reuse_page=reuse_page)
         self._payloads = []
         self._listener = self._capture
         self._reset()
@@ -65,11 +67,13 @@ class Message(ProfilePage):
         page.on("response", self._listener)
 
     @guard
-    async def get_messages(self, username):
+    async def get_messages(self, username, *, account=False):
         username = await self.open_profile(username)
 
         if username is None:
             return False
+
+        profile = await self._account.read_open_profile(username) if account else None
 
         if await self._open_chat(username) is None:
             return False
@@ -84,10 +88,10 @@ class Message(ProfilePage):
 
         info(f"Messages récupérés pour @{username} : {len(messages)}.")
 
-        return self._as_payload(username, messages)
+        return self._as_payload(username, messages, account=profile)
 
     @guard
-    async def send_message(self, username, message, *, history=False, human=True):
+    async def send_message(self, username, message, *, history=False, human=True, account=False):
         if not message or not message.strip():
             error("Message vide.")
 
@@ -98,6 +102,7 @@ class Message(ProfilePage):
         if username is None:
             return False
 
+        profile = await self._account.read_open_profile(username) if account else None
         composer = await self._open_chat(username)
 
         if composer is None:
@@ -124,13 +129,13 @@ class Message(ProfilePage):
             warn("Message envoyé, mais l'historique n'a pas pu être relu.")
 
         if not history or messages is None:
-            return self._as_payload(username, [], sent=True)
+            return self._as_payload(username, [], sent=True, account=profile)
 
         messages = self._with_sent(messages, message, sent_at)
 
         info(f"Historique récupéré après envoi : {len(messages)} messages.")
 
-        return self._as_payload(username, messages, sent=True)
+        return self._as_payload(username, messages, sent=True, account=profile)
 
     @asynccontextmanager
     async def conversation(self, username):
@@ -205,8 +210,11 @@ class Message(ProfilePage):
         return stamp
 
     @staticmethod
-    def _as_payload(username, messages, sent=None):
+    def _as_payload(username, messages, sent=None, account=None):
         payload = {"username": username}
+
+        if account is not None:
+            payload["account"] = account
 
         if sent is not None:
             payload["sent"] = sent

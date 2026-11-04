@@ -122,11 +122,13 @@ def _build_parser():
     messages = _command(commands, "messages", "lire une conversation", command_common)
     messages.add_argument("username_arg", metavar="USER", help="destinataire de la conversation")
     messages.add_argument("--last", type=int, metavar="N", help="n'afficher que les N derniers messages (0 = tous)")
+    messages.add_argument("--account", action="store_true", help="joindre les informations de la fiche du compte")
 
     send = _command(commands, "send", "envoyer un message privé", command_common)
     send.add_argument("username_arg", metavar="USER", help="destinataire")
     send.add_argument("message", help="texte à envoyer")
     send.add_argument("--history", action="store_true", help="renvoyer l'historique après envoi")
+    send.add_argument("--account", action="store_true", help="joindre les informations de la fiche du compte")
     send.add_argument(
         "--last",
         type=int,
@@ -291,13 +293,14 @@ async def _run_command(client, args):
         return {"username": args.username_arg, "followed": True}
 
     if args.command == "messages":
-        return await client.messages(args.username_arg)
+        return await client.messages(args.username_arg, account=args.account)
 
     if args.command == "send":
         return await client.send_message(
             args.username_arg,
             args.message,
             history=args.history,
+            account=args.account,
         )
 
     msg = f"commande inconnue : {args.command}"

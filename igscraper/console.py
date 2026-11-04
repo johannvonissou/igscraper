@@ -308,29 +308,31 @@ class Console:
         await self._timed("follow", follow)
 
     async def _messages(self, tokens):
+        account, tokens = take_flag(tokens, "--account")
         last, tokens = take_last(tokens)
 
         if len(tokens) != 1:
-            usage("messages <compte> [--last N]")
+            usage("messages <compte> [--account] [--last N]")
 
         await self._timed(
             "messages",
-            lambda: self._client.messages(tokens[0]),
+            lambda: self._client.messages(tokens[0], account=account),
             lambda data: render("messages", data, last),
         )
 
     async def _send(self, tokens):
         history, tokens = take_flag(tokens, "--history")
+        account, tokens = take_flag(tokens, "--account")
         last, tokens = take_last(tokens)
 
         if len(tokens) < CONSOLE_PAIR:
-            usage("send <compte> <texte> [--history] [--last N]")
+            usage("send <compte> <texte> [--history] [--account] [--last N]")
 
         username, text = tokens[0], " ".join(tokens[1:])
 
         await self._timed(
             "send",
-            lambda: self._client.send_message(username, text, history=history),
+            lambda: self._client.send_message(username, text, history=history, account=account),
             lambda data: render("send", data, last),
         )
 
