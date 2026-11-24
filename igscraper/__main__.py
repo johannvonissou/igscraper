@@ -187,7 +187,7 @@ def _client(args):
     return Instagram(
         BrowserOptions(
             headless=not args.headed,
-            block_media=not args.load_media,
+            block_media=not (args.load_media or args.headed),
         ),
     )
 

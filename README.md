@@ -138,8 +138,8 @@ Ces options sont acceptées par les commandes qui ouvrent un navigateur :
 
 | Option | Description |
 | --- | --- |
-| `--headed` | Affiche la fenêtre du navigateur. Nécessaire pour résoudre un challenge manuellement. |
-| `--load-media` | Télécharge images et vidéos. Les médias sont bloqués par défaut. |
+| `--headed` | Affiche la fenêtre du navigateur, médias chargés. Nécessaire pour résoudre un challenge manuellement (les images d'un captcha doivent s'afficher). |
+| `--load-media` | Télécharge images et vidéos en arrière-plan. Les médias sont bloqués par défaut, sauf avec `--headed`. |
 | `--json` | Écrit uniquement le JSON final sur `stdout` et désactive les journaux. |
 | `--sessionid COOKIE` | Réutilise un cookie `sessionid` existant. |
 | `--username USER` | Compte Instagram utilisé pour la connexion. |
@@ -659,7 +659,7 @@ async with stealth_browser() as context:
 
 ### Médias
 
-Par défaut, les images ne sont pas chargées. `--load-media` (CLI) ou `block_media=False` (Python) les autorisent, au prix d'un chargement plus lent.
+Par défaut, les images ne sont pas chargées en arrière-plan. `--load-media` (CLI) ou `block_media=False` (Python) les autorisent, au prix d'un chargement plus lent. Avec `--headed` (et `headless off` dans la console), elles sont toujours chargées : sinon les images d'un captcha restent vides et le challenge ne peut pas être résolu à la main. En Python, passez `block_media=False` avec `headless=False` pour la même raison.
 
 Le blocage passe par le réglage Blink `--blink-settings=imagesEnabled=false` et non par une interception (`context.route`) : Playwright désactive le cache HTTP de Chrome dès qu'une requête est interceptée, et chaque page retéléchargeait alors ses ~90 scripts (≈ 4 Mo, ≈ 165 requêtes) au lieu de les lire dans le cache (≈ 25 requêtes réseau hors images).
 

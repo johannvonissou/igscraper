@@ -93,6 +93,8 @@ def usage(text):
 class Console:
     def __init__(self, options, *, sessionid=None, username=None, password=None, json_mode=False):
         self._options = options
+        self._block_media = options.block_media
+        options.block_media = options.block_media and options.headless
         self._sessionid = sessionid
         self._username = username
         self._password = password
@@ -368,6 +370,7 @@ class Console:
 
         await self.close()
         self._options.headless = enabled
+        self._options.block_media = self._block_media and enabled
 
         try:
             self._client = await Instagram(self._options).start()
