@@ -18,6 +18,7 @@ from igscraper.constants import (
     LOGIN_METHOD_SESSIONID,
     LOGIN_PASSWORD_ALERT_DELAY,
     LOGIN_PENDING,
+    LOGIN_SAVE_LOGIN_IDLE,
     LOGIN_SEL_ALERT,
     LOGIN_SEL_COOKIES_CANDIDATES,
     LOGIN_SEL_CREDENTIAL_INPUT,
@@ -25,9 +26,10 @@ from igscraper.constants import (
     LOGIN_SEL_LATER_CANDIDATES,
     LOGIN_SEL_LOGIN_BTN_CANDIDATES,
     LOGIN_SEL_LOGIN_FORM,
-    LOGIN_SEL_SAVE_LOGIN_CANDIDATES,
+    LOGIN_SEL_SAVE_LOGIN_LATER_CANDIDATES,
     LOGIN_SLEEP_INTER,
     LOGIN_SLEEP_MANUAL_POLL,
+    LOGIN_SLEEP_POLL,
     LOGIN_TO_ATTRIBUTE,
     LOGIN_TO_COOKIES,
     LOGIN_TO_LATER,
@@ -40,6 +42,7 @@ from igscraper.constants import (
     LOGIN_TYPE_SLEEP_MS,
     LOGIN_URL_CHALLENGE,
     LOGIN_URL_RECAPTCHA,
+    LOGIN_URL_SAVE_LOGIN_PENDING,
     MAIN_PAGE,
     POLL_DELAY_GROWTH,
     POLL_DELAY_MAX,
@@ -375,14 +378,7 @@ class Login:
 
     async def _dismiss_popups(self, method):
         if method is LoginMethod.CREDENTIALS:
-            await click_first(
-                self._page,
-                LOGIN_SEL_SAVE_LOGIN_CANDIDATES,
-                timeout_ms=LOGIN_TO_SAVE_LOGIN,
-                label="Popup d'enregistrement des identifiants",
-            )
-
-            debug("Popup d'enregistrement traitée.")
+            await self._dismiss_save_login()
 
         await click_first(
             self._page,
@@ -390,6 +386,34 @@ class Login:
             timeout_ms=LOGIN_TO_LATER,
             label="Popup de notifications",
         )
+
+    async def _dismiss_save_login(self):
+        deadline = time.monotonic() + LOGIN_TO_SAVE_LOGIN / 1000
+        idle_since = None
+
+        while time.monotonic() < deadline:
+            if await click_first(
+                self._page,
+                LOGIN_SEL_SAVE_LOGIN_LATER_CANDIDATES,
+                timeout_ms=0,
+                label="Popup d'enregistrement des identifiants",
+            ):
+                debug("Popup d'enregistrement refusée.")
+
+                return True
+
+            if any(part in self._page.url for part in LOGIN_URL_SAVE_LOGIN_PENDING):
+                idle_since = None
+            elif idle_since is None:
+                idle_since = time.monotonic()
+            elif time.monotonic() - idle_since >= LOGIN_SAVE_LOGIN_IDLE:
+                break
+
+            await asleep(LOGIN_SLEEP_POLL)
+
+        debug("Popup d'enregistrement absente.")
+
+        return False
 
     async def _finish(self, method):
         cookies = await self._cookies()

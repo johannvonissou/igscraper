@@ -209,19 +209,21 @@ LOGIN_SEL_COOKIES_CANDIDATES = (
     'button:has-text("Accept all")',
 )
 
-LOGIN_SEL_SAVE_LOGIN_CANDIDATES = (
-    'button:has-text("Enregistrer les identifiants")',
-    'button:has-text("Enregistrer les informations")',
-    'button:has-text("Save login info")',
-    'button:has-text("Save info")',
+LOGIN_SEL_SAVE_LOGIN_LATER_CANDIDATES = (
+    'div[role="dialog"] div[role="button"]:visible:has-text("Plus tard")',
+    'div[role="dialog"] button:visible:has-text("Plus tard")',
+    'div[role="dialog"] div[role="button"]:visible:has-text("Pas maintenant")',
+    'div[role="dialog"] button:visible:has-text("Pas maintenant")',
+    'div[role="dialog"] div[role="button"]:visible:has-text("Not now")',
+    'div[role="dialog"] button:visible:has-text("Not now")',
 )
 
 LOGIN_SEL_LATER_CANDIDATES = (
-    'button:has-text("Plus tard")',
-    'button:has-text("Pas maintenant")',
-    'button:has-text("Not now")',
-    'div[role="button"]:has-text("Plus tard")',
-    'div[role="button"]:has-text("Not now")',
+    'button:visible:has-text("Plus tard")',
+    'button:visible:has-text("Pas maintenant")',
+    'button:visible:has-text("Not now")',
+    'div[role="button"]:visible:has-text("Plus tard")',
+    'div[role="button"]:visible:has-text("Not now")',
 )
 
 LOGIN_SEL_CAPTCHA = 'iframe[src*="arkoselabs"]'
@@ -246,11 +248,13 @@ LOGIN_COOKIE_PATH = "/"
 
 LOGIN_URL_CHALLENGE = "/challenge"
 LOGIN_URL_RECAPTCHA = "/auth_platform"
+LOGIN_URL_SAVE_LOGIN_PENDING = ("/accounts/login", "/accounts/onetap")
 
 LOGIN_TO_COOKIES = 600
 LOGIN_TO_LOGIN_BTN = 1000
 LOGIN_TO_LOGIN_FORM = 10000
-LOGIN_TO_SAVE_LOGIN = 1200
+LOGIN_TO_SAVE_LOGIN = 20000
+LOGIN_SAVE_LOGIN_IDLE = 2
 LOGIN_TO_LATER = 1500
 LOGIN_TO_ATTRIBUTE = 1000
 
@@ -449,7 +453,7 @@ MESSAGE_SEND_POLL_MAX = 20
 LOG_LEVELS = ("DEBUG", "INFO", "WARNING", "ERROR")
 CONFIRM_ANSWERS = frozenset({"y", "yes", "o", "oui"})
 
-CONSOLE_PROMPT = "ig> "
+CONSOLE_PROMPT = "igscraper> "
 CONSOLE_DEFAULT_LOG_LEVEL = "WARNING"
 CONSOLE_DEFAULT_LAST = 10
 CONSOLE_SESSION_PREVIEW = 12
